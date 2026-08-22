@@ -1,0 +1,87 @@
+name: qtest
+display_name: qTest (Tricentis)
+interface: api
+category: test-management
+homepage: https://api.qasymphony.com/
+
+detect:
+  auth_check: 'curl -s -H "Authorization: Bearer $QTEST_ACCESS_TOKEN" "https://{instance}.qtestnet.com/api/v3/projects"'
+
+api:
+  base_url: "https://{instance}.qtestnet.com/api/v3"
+  auth:
+    type: "oauth2_password_grant"
+    header: "Authorization: Bearer $QTEST_ACCESS_TOKEN"
+    env_vars:
+      - QTEST_USER
+      - QTEST_PASSWORD
+      - QTEST_ACCESS_TOKEN
+    how_to_obtain: "Exchange the qTest user's own username/password for a bearer token via the token endpoint in session_setup below — qTest doesn't issue long-lived personal API tokens the way GitHub/Jira do."
+    session_setup:
+      - >-
+        curl -s -X POST "https://{instance}.qtestnet.com/oauth/token"
+        -H "Authorization: Basic cXRlc3Rfd2ViOg==" -H "Content-Type: application/x-www-form-urlencoded"
+        -d "grant_type=password&username=$QTEST_USER&password=$QTEST_PASSWORD"
+    notes: >-
+      The Basic header in session_setup is the fixed client id qtest_web with an empty
+      secret (base64("qtest_web:")) — it's a public constant, not a per-account secret,
+      but the user's own username/password in the body is sensitive. The response's
+      access_token is what goes in QTEST_ACCESS_TOKEN for subsequent calls, and expires
+      (commonly on the order of an hour) — re-run session_setup rather than reusing an
+      old token from earlier in a session.
+  rate_limits: "Not publicly documented as a fixed number; back off on repeated 429s."
+
+when_to_use:
+  - "Reading a test case's steps or a test run's latest result instead of asking the user to look it up in the qTest UI"
+  - "Logging an automated test run's result back into qTest"
+  - "Searching for test cases matching a name/module before linking them to code"
+
+prefer_over:
+  - tool: "the qTest web UI"
+    reason: "scriptable and returns structured JSON; useful for wiring CI results back into test management"
+
+capabilities:
+  - task: "Get a test case's details"
+    method: GET
+    path: "/projects/{projectId}/test-cases/{id}"
+    command: >-
+      curl -s -H "Authorization: Bearer $QTEST_ACCESS_TOKEN"
+      "https://{instance}.qtestnet.com/api/v3/projects/{projectId}/test-cases/{id}"
+    read_only: true
+
+  - task: "Search test cases"
+    method: POST
+    path: "/projects/{projectId}/test-cases/search"
+    command: >-
+      curl -s -X POST -H "Authorization: Bearer $QTEST_ACCESS_TOKEN" -H "Content-Type: application/json"
+      -d '{"object_type": "test-cases", "fields": ["id","name"], "query": "\"Name\" ~ \"{search_term}\""}'
+      "https://{instance}.qtestnet.com/api/v3/projects/{projectId}/test-cases/search"
+    notes: "Search is POST with a query-language string in the body, not a GET with query params — the query syntax resembles JQL but is qTest-specific."
+    read_only: true
+
+  - task: "Submit a test run result"
+    method: POST
+    path: "/projects/{projectId}/test-runs/{id}/test-logs"
+    command: >-
+      curl -s -X POST -H "Authorization: Bearer $QTEST_ACCESS_TOKEN" -H "Content-Type: application/json"
+      -d '{"status": "PASS", "exe_start_date": "{iso8601}", "exe_end_date": "{iso8601}", "note": "..."}'
+      "https://{instance}.qtestnet.com/api/v3/projects/{projectId}/test-runs/{id}/test-logs"
+    notes: "status values are project-configurable (PASS/FAIL/INCOMPLETE are common defaults but not guaranteed) — GET the project's status configuration if an unfamiliar project rejects the obvious value."
+    read_only: false
+
+output_parsing:
+  common_fields:
+    - path: ".access_token"
+      meaning: "from the session_setup token response — put this in QTEST_ACCESS_TOKEN"
+    - path: ".status.name"
+      meaning: "on test-run/test-log objects — the human-readable current status"
+  error_handling:
+    - pattern: "401"
+      meaning: "access token expired or missing — re-run session_setup to get a fresh one"
+    - pattern: "invalid_grant"
+      meaning: "wrong username/password in the token request itself"
+
+pitfalls:
+  - "There is no long-lived personal access token — every session must start by exchanging username/password for a short-lived bearer token, and that token must be refreshed periodically, not cached indefinitely."
+  - "projectId is numeric and specific to the qTest instance; don't assume it's stable across different qTest environments (e.g. staging vs. production)."
+  - "Never print QTEST_PASSWORD or the raw access_token in logs or command output."

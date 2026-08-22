@@ -1,0 +1,97 @@
+name: jira
+display_name: Jira (Atlassian Cloud)
+interface: api
+category: issue-tracking
+homepage: https://developer.atlassian.com/cloud/jira/platform/rest/v3/
+
+detect:
+  auth_check: 'curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "https://{site}.atlassian.net/rest/api/3/myself"'
+
+api:
+  base_url: "https://{site}.atlassian.net/rest/api/3"
+  auth:
+    type: "basic_api_token"
+    header: 'Authorization: Basic base64("$JIRA_EMAIL:$JIRA_API_TOKEN")'
+    env_vars:
+      - JIRA_EMAIL
+      - JIRA_API_TOKEN
+    how_to_obtain: "Create an API token at https://id.atlassian.com/manage-profile/security/api-tokens. Use it with the account's email via HTTP Basic auth (curl's -u flag does the base64 encoding for you)."
+    notes: "Tokens don't expire on a fixed schedule but can be revoked by the user or an admin at any time; a 401 usually means the token was revoked or the email doesn't match its owner."
+  rate_limits: "Cloud instances throttle per-app and per-user; a 429 includes a Retry-After header — back off and retry rather than hammering."
+
+when_to_use:
+  - "Reading or updating issue status, fields, or comments as part of a workflow (e.g. moving a ticket when a PR merges)"
+  - "Searching for issues matching criteria (JQL) instead of asking the user to look them up"
+  - "Linking a PR/commit to its tracking issue"
+
+prefer_over:
+  - tool: "the Jira web UI"
+    reason: "scriptable and returns structured JSON; safe to run non-interactively"
+
+capabilities:
+  - task: "Get an issue's key fields"
+    method: GET
+    path: "/issue/{issueIdOrKey}"
+    command: >-
+      curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN"
+      "https://{site}.atlassian.net/rest/api/3/issue/{issueIdOrKey}?fields=summary,status,assignee,priority"
+    example_output: |
+      {"key": "PROJ-123", "fields": {"summary": "Fix login bug", "status": {"name": "In Progress"}}}
+    read_only: true
+
+  - task: "Search issues with JQL"
+    method: GET
+    path: "/search"
+    command: >-
+      curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -G
+      "https://{site}.atlassian.net/rest/api/3/search"
+      --data-urlencode 'jql=project=PROJ AND status="In Progress"'
+      --data-urlencode 'fields=summary,status'
+    notes: "URL-encode the jql parameter (curl's --data-urlencode handles this) — raw quotes/spaces will break the request."
+    read_only: true
+
+  - task: "Add a comment to an issue"
+    method: POST
+    path: "/issue/{issueIdOrKey}/comment"
+    command: >-
+      curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -X POST -H "Content-Type: application/json"
+      -d '{"body": {"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"..."}]}]}}'
+      "https://{site}.atlassian.net/rest/api/3/issue/{issueIdOrKey}/comment"
+    notes: "Comment bodies use Atlassian Document Format (ADF), not plain text or markdown — a bare string body will be rejected."
+    read_only: false
+
+  - task: "Transition an issue's status"
+    method: POST
+    path: "/issue/{issueIdOrKey}/transitions"
+    command: >-
+      curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -X POST -H "Content-Type: application/json"
+      -d '{"transition": {"id": "{transitionId}"}}'
+      "https://{site}.atlassian.net/rest/api/3/issue/{issueIdOrKey}/transitions"
+    notes: "Valid transition IDs are workflow-specific and not obvious from the status name — first GET the same path (no body) to list available transitions for this issue before posting one."
+    read_only: false
+
+  - task: "Create an issue"
+    method: POST
+    path: "/issue"
+    command: >-
+      curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -X POST -H "Content-Type: application/json"
+      -d '{"fields": {"project": {"key": "PROJ"}, "summary": "...", "issuetype": {"name": "Bug"}}}'
+      "https://{site}.atlassian.net/rest/api/3/issue"
+    read_only: false
+
+output_parsing:
+  common_fields:
+    - path: ".fields.status.name"
+      meaning: "human-readable status; the machine id is at .fields.status.id"
+    - path: ".errorMessages[]"
+      meaning: "present on 400s — human-readable reasons the request was rejected"
+  error_handling:
+    - pattern: "401"
+      meaning: "bad/revoked API token, or email doesn't match the token owner"
+    - pattern: "403"
+      meaning: "authenticated but lacks project permission for this action"
+
+pitfalls:
+  - "curl does not fail non-zero on HTTP error responses by default — add -f or check the status code explicitly, otherwise a 400/403 body can be silently misread as success."
+  - "The base URL's `{site}` and any `{issueIdOrKey}`/`{transitionId}` placeholders are per-org/per-issue — never invent a site name; ask the user or read it from existing config if unknown."
+  - "Endpoint shapes shift between Jira API versions (v2 vs v3) and Atlassian occasionally deprecates fields — verify against current docs at the homepage URL if a call behaves unexpectedly."

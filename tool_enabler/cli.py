@@ -48,8 +48,9 @@ def cmd_list(args: argparse.Namespace) -> int:
         return 0
     width = max(len(p.name) for p in profiles)
     for p in profiles:
-        cat = f" [{p.category}]" if p.category else ""
-        print(f"{p.name.ljust(width)}  {p.display_name}{cat}")
+        tags = [t for t in (p.category, "api" if p.interface == "api" else "") if t]
+        suffix = f" [{', '.join(tags)}]" if tags else ""
+        print(f"{p.name.ljust(width)}  {p.display_name}{suffix}")
     return 0
 
 

@@ -1,0 +1,79 @@
+name: slack
+display_name: Slack
+interface: api
+category: chat
+homepage: https://api.slack.com/web
+
+detect:
+  auth_check: 'curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" "https://slack.com/api/auth.test"'
+
+api:
+  base_url: "https://slack.com/api"
+  auth:
+    type: "bearer_token"
+    header: "Authorization: Bearer $SLACK_BOT_TOKEN"
+    env_vars:
+      - SLACK_BOT_TOKEN
+    how_to_obtain: "Create/install a Slack app at https://api.slack.com/apps, add the scopes the task needs (chat:write, channels:history, channels:read, etc.), install it to the workspace, and use the resulting Bot User OAuth Token (starts with xoxb-)."
+    notes: "The token is workspace- and app-scoped; if a call returns 'missing_scope', the fix is adding that scope to the app and reinstalling it — not retrying the call."
+  rate_limits: "Tiered per method (Tier 1-4); a 429 response includes a Retry-After header in seconds — respect it rather than retrying immediately."
+
+when_to_use:
+  - "Posting a notification or result to a channel on the user's behalf"
+  - "Reading recent messages in a channel to gather context"
+  - "Looking up a user or channel by name before acting on it"
+
+prefer_over:
+  - tool: "the Slack desktop/web app"
+    reason: "scriptable and works headlessly; no need for an interactive session"
+
+capabilities:
+  - task: "Post a message to a channel"
+    method: POST
+    path: "/chat.postMessage"
+    command: >-
+      curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" -H "Content-Type: application/json; charset=utf-8"
+      -d '{"channel": "{channel_id}", "text": "..."}'
+      "https://slack.com/api/chat.postMessage"
+    notes: "channel must be a channel ID (e.g. C0123456) or the bot must already be a member of the channel for a name-based lookup path to work — resolve names via conversations.list first if only a name is known."
+    read_only: false
+
+  - task: "Read recent messages in a channel"
+    method: GET
+    path: "/conversations.history"
+    command: >-
+      curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" -G
+      "https://slack.com/api/conversations.history"
+      --data-urlencode "channel={channel_id}" --data-urlencode "limit=50"
+    read_only: true
+
+  - task: "List channels the bot can see"
+    method: GET
+    path: "/conversations.list"
+    command: 'curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" "https://slack.com/api/conversations.list?limit=200"'
+    read_only: true
+
+  - task: "Look up a user by email"
+    method: GET
+    path: "/users.lookupByEmail"
+    command: >-
+      curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" -G
+      "https://slack.com/api/users.lookupByEmail" --data-urlencode "email={email}"
+    read_only: true
+
+output_parsing:
+  common_fields:
+    - path: ".ok"
+      meaning: "true/false — the real success signal; do not infer success from HTTP status alone"
+    - path: ".error"
+      meaning: "present when .ok is false — a short machine-readable error code (e.g. channel_not_found, not_in_channel, missing_scope)"
+  error_handling:
+    - pattern: "not_in_channel"
+      meaning: "the bot user must be invited to the channel (or channel must be public) before it can post or read history there"
+    - pattern: "missing_scope"
+      meaning: "the app's OAuth scopes don't cover this method — add the scope and reinstall the app"
+
+pitfalls:
+  - "Slack's Web API returns HTTP 200 even for logical failures — always check the JSON body's `ok` field, never rely on the HTTP status code alone."
+  - "Bot tokens can only act in channels they've been invited to (or public channels, for read); a fresh bot will fail with not_in_channel until added."
+  - "Never print or log the bot token (starts with xoxb-) — treat it exactly like a password."

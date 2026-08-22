@@ -1,0 +1,72 @@
+name: splunk
+display_name: Splunk
+interface: api
+category: observability
+homepage: https://docs.splunk.com/Documentation/Splunk/latest/RESTREF/RESTsearch
+
+detect:
+  auth_check: 'curl -sk -H "Authorization: Bearer $SPLUNK_TOKEN" "https://{splunk-host}:8089/services/server/info?output_mode=json"'
+
+api:
+  base_url: "https://{splunk-host}:8089"
+  auth:
+    type: "bearer_token"
+    header: "Authorization: Bearer $SPLUNK_TOKEN"
+    env_vars:
+      - SPLUNK_TOKEN
+    how_to_obtain: "Create a token under Settings > Tokens in Splunk Web (requires an admin to enable token auth for the instance first). This is preferred over the session-login flow below because it doesn't expire on a short timer."
+    session_setup:
+      - >-
+        # alternative if only username/password are available, not a pre-issued token:
+        curl -sk -X POST "https://{splunk-host}:8089/services/auth/login"
+        -d "username=$SPLUNK_USER&password=$SPLUNK_PASS&output_mode=json"
+    notes: "The management port is typically 8089, separate from the search-UI port (8000/443). Most Splunk instances use a self-signed cert internally — -k (insecure) is commonly needed unless the CA is trusted; check with the user before disabling verification against anything internet-facing."
+  rate_limits: "Concurrent search job limits are configured per-instance/role, not a fixed public number — a 'quota' error means too many running searches, not a request-rate limit."
+
+when_to_use:
+  - "Running a search to pull logs/metrics relevant to an incident or bug report"
+  - "Checking whether a known error pattern has occurred recently"
+
+prefer_over:
+  - tool: "the Splunk web search UI"
+    reason: "scriptable and returns structured JSON instead of requiring manual query entry and export"
+
+capabilities:
+  - task: "Run a search and get results in one call (oneshot)"
+    method: POST
+    path: "/services/search/jobs"
+    command: >-
+      curl -sk -H "Authorization: Bearer $SPLUNK_TOKEN"
+      "https://{splunk-host}:8089/services/search/jobs"
+      -d "search=search index=main error | head 100" -d "exec_mode=oneshot" -d "output_mode=json"
+    notes: "exec_mode=oneshot blocks until results are ready and returns them directly — much simpler for agent use than the default async job + poll + fetch-results flow, but only suitable for searches expected to finish quickly."
+    example_output: |
+      {"results": [{"_time": "2026-08-20T10:00:00", "_raw": "ERROR: ..."}]}
+    read_only: true
+
+  - task: "Run a long search asynchronously and poll for results"
+    method: POST
+    path: "/services/search/jobs"
+    command: >-
+      curl -sk -H "Authorization: Bearer $SPLUNK_TOKEN"
+      "https://{splunk-host}:8089/services/search/jobs" -d "search=search ..." -d "output_mode=json"
+    notes: "Returns a search id (sid); poll GET /services/search/jobs/{sid} until dispatchState=DONE, then GET /services/search/jobs/{sid}/results?output_mode=json."
+    read_only: true
+
+output_parsing:
+  json_flag: "output_mode=json (Splunk returns XML/Atom by default without this)"
+  common_fields:
+    - path: ".results[]._raw"
+      meaning: "the raw log line matching the search"
+    - path: ".results[]._time"
+      meaning: "event timestamp, ISO 8601"
+  error_handling:
+    - pattern: "401"
+      meaning: "token invalid/expired, or session key from the login endpoint expired (session keys are typically valid ~1 hour by default, configurable)"
+    - pattern: "quota"
+      meaning: "too many concurrent search jobs for this user/role — wait for one to finish rather than retrying immediately"
+
+pitfalls:
+  - "Always pass output_mode=json — the default response format is XML and will not parse as JSON."
+  - "The management REST port (8089) is usually different from the port users search from in a browser — don't assume they're the same."
+  - "Search strings in the `search` parameter often need a leading `search` keyword itself (e.g. `search index=main ...`) when using the jobs endpoint directly, unlike the search bar in Splunk Web."

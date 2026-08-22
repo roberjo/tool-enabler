@@ -1,0 +1,77 @@
+name: harness
+display_name: Harness (NextGen CI/CD)
+interface: api
+category: ci-cd
+homepage: https://apidocs.harness.io/
+
+detect:
+  auth_check: >-
+    curl -s -H "x-api-key: $HARNESS_API_KEY"
+    "https://app.harness.io/gateway/ng/api/pipeline/list?accountIdentifier=$HARNESS_ACCOUNT_ID&orgIdentifier=$HARNESS_ORG_ID&projectIdentifier=$HARNESS_PROJECT_ID"
+
+api:
+  base_url: "https://app.harness.io/gateway"
+  auth:
+    type: "api_key"
+    header: "x-api-key: $HARNESS_API_KEY"
+    env_vars:
+      - HARNESS_API_KEY
+      - HARNESS_ACCOUNT_ID
+      - HARNESS_ORG_ID
+      - HARNESS_PROJECT_ID
+    how_to_obtain: "Create a Personal Access Token or Service Account token under Account/User Settings > API Keys in the Harness UI."
+    notes: "For a self-managed (on-prem) Harness instance, base_url is the instance's own hostname instead of app.harness.io — confirm which deployment before use."
+  rate_limits: "Per-account API rate limits apply; a 429 response is returned when exceeded."
+
+when_to_use:
+  - "Triggering a pipeline execution and reporting back its status"
+  - "Checking whether the latest execution of a pipeline succeeded before proceeding with a dependent task"
+  - "Listing pipelines available in a project"
+
+prefer_over:
+  - tool: "the Harness web UI"
+    reason: "scriptable and works headlessly"
+
+capabilities:
+  - task: "List pipelines in a project"
+    method: GET
+    path: "/ng/api/pipelines/list"
+    command: >-
+      curl -s -X POST -H "x-api-key: $HARNESS_API_KEY" -H "Content-Type: application/json" -d '{}'
+      "https://app.harness.io/gateway/ng/api/pipelines/list?accountIdentifier=$HARNESS_ACCOUNT_ID&orgIdentifier=$HARNESS_ORG_ID&projectIdentifier=$HARNESS_PROJECT_ID"
+    notes: "This listing endpoint is POST with an (optionally empty) filter body, not a plain GET, despite being a read — an easy mistake."
+    read_only: true
+
+  - task: "Trigger a pipeline execution"
+    method: POST
+    path: "/pipeline/api/pipeline/execute/{pipelineIdentifier}"
+    command: >-
+      curl -s -X POST -H "x-api-key: $HARNESS_API_KEY" -H "Content-Type: application/json" -d '{}'
+      "https://app.harness.io/gateway/pipeline/api/pipeline/execute/{pipelineIdentifier}?accountIdentifier=$HARNESS_ACCOUNT_ID&orgIdentifier=$HARNESS_ORG_ID&projectIdentifier=$HARNESS_PROJECT_ID"
+    notes: "Response includes a planExecutionId — use it to poll the execution-status endpoint. Runtime input values, if the pipeline requires them, go in the request body."
+    read_only: false
+
+  - task: "Get an execution's status"
+    method: GET
+    path: "/pipeline/api/pipelines/execution/{planExecutionId}"
+    command: >-
+      curl -s -H "x-api-key: $HARNESS_API_KEY"
+      "https://app.harness.io/gateway/pipeline/api/pipelines/execution/{planExecutionId}?accountIdentifier=$HARNESS_ACCOUNT_ID&orgIdentifier=$HARNESS_ORG_ID&projectIdentifier=$HARNESS_PROJECT_ID"
+    read_only: true
+
+output_parsing:
+  common_fields:
+    - path: ".data.status"
+      meaning: "Running | Success | Failed | Aborted | Expired, among others"
+    - path: ".status"
+      meaning: "top-level envelope status — 'SUCCESS'/'ERROR' describing the API call itself, distinct from .data.status (the pipeline's own status)"
+  error_handling:
+    - pattern: "401"
+      meaning: "invalid/expired API key"
+    - pattern: "INVALID_REQUEST"
+      meaning: "commonly a missing accountIdentifier/orgIdentifier/projectIdentifier query parameter — these three are required on nearly every NextGen endpoint"
+
+pitfalls:
+  - "Nearly every NextGen API call requires accountIdentifier, orgIdentifier, and projectIdentifier as query parameters even for a single, unambiguous pipeline — omitting any one of them is the most common cause of a confusing 400."
+  - "The API's own envelope status (.status: SUCCESS) is separate from the pipeline execution's status (.data.status: Running/Failed/...) — check the latter to know whether the pipeline itself passed."
+  - "Self-managed Harness deployments use a different base_url than the SaaS app.harness.io — verify which one applies before hardcoding it."

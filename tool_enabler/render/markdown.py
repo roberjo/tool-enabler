@@ -11,10 +11,16 @@ from __future__ import annotations
 from tool_enabler.schema import Profile
 
 
+def _heading_subject(p: Profile) -> str:
+    if p.interface == "api":
+        return p.display_name
+    return f"{p.display_name} (`{p.binary}`)"
+
+
 def render_tool_section(p: Profile, heading_level: int = 3) -> str:
     h = "#" * heading_level
     lines: list[str] = []
-    lines.append(f"{h} {p.display_name} (`{p.binary}`)")
+    lines.append(f"{h} {_heading_subject(p)}")
     lines.append("")
 
     if p.when_to_use:
@@ -41,11 +47,41 @@ def render_tool_section(p: Profile, heading_level: int = 3) -> str:
         lines.append(line)
         lines.append("")
 
+    if p.interface == "api":
+        a = p.api.auth
+        lines.append(f"**Interface:** REST API — base URL `{p.api.base_url}`")
+        lines.append("")
+        auth_bits = []
+        if a.type:
+            auth_bits.append(f"type `{a.type}`")
+        if a.header:
+            auth_bits.append(f"header: `{a.header}`")
+        lines.append("**Auth:** " + (", ".join(auth_bits) if auth_bits else "(see notes)"))
+        if a.env_vars:
+            lines.append(f"- Required env vars: {', '.join(f'`{v}`' for v in a.env_vars)}")
+        if a.how_to_obtain:
+            lines.append(f"- How to obtain: {a.how_to_obtain}")
+        if a.session_setup:
+            lines.append("- Session setup (run first, in order):")
+            for i, step in enumerate(a.session_setup, 1):
+                lines.append(f"  {i}. `{step}`")
+        if a.notes:
+            lines.append(f"- {a.notes}")
+        lines.append(
+            "- Never print, log, or commit token/credential values — read them from "
+            "env vars or a secret manager only."
+        )
+        if p.api.rate_limits:
+            lines.append(f"- Rate limits: {p.api.rate_limits}")
+        lines.append("")
+
     if p.capabilities:
         lines.append("**Capabilities:**")
         for c in p.capabilities:
             tag = "read-only" if c.read_only else "side-effecting — confirm before running"
             lines.append(f"- {c.task} ({tag})")
+            if c.method and c.path:
+                lines.append(f"  `{c.method} {c.path}`")
             lines.append(f"  `{c.command}`")
             if c.notes:
                 lines.append(f"  {c.notes}")
@@ -75,12 +111,15 @@ def render_tool_section(p: Profile, heading_level: int = 3) -> str:
 
 
 def render_catalog_markdown(profiles: list[Profile]) -> str:
-    """Render the full 'CLI Tools' body shared across AGENTS.md/GEMINI.md/copilot."""
-    parts = ["## CLI Tools", ""]
+    """Render the full 'Tool & API Integrations' body shared across
+    AGENTS.md/GEMINI.md/copilot-instructions.md."""
+    parts = ["## Tool & API Integrations", ""]
     parts.append(
-        "The following CLI tools are available in this environment. Prefer them "
-        "over slower or less reliable alternatives (web UI scraping, hand-written "
-        "HTTP calls) when they cover the task."
+        "The following CLI tools and API-based systems are available in this "
+        "environment. Prefer them over slower or less reliable alternatives "
+        "(web UI clicking, ad-hoc scraping) when they cover the task. API "
+        "systems are called the same way as CLI tools — with `curl` via your "
+        "shell tool — the difference is the auth handshake documented below."
     )
     parts.append("")
     for i, p in enumerate(profiles):

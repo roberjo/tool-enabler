@@ -42,6 +42,8 @@ class Capability:
     notes: str = ""
     example_output: str = ""
     read_only: bool = True
+    method: str = ""
+    path: str = ""
 
     @classmethod
     def from_dict(cls, d: dict, source: str) -> "Capability":
@@ -51,6 +53,8 @@ class Capability:
             notes=str(d.get("notes", "")),
             example_output=str(d.get("example_output", "")),
             read_only=bool(d.get("read_only", True)),
+            method=str(d.get("method", "")),
+            path=str(d.get("path", "")),
         )
 
 
@@ -117,13 +121,51 @@ class Detect:
 
 
 @dataclass
+class ApiAuth:
+    type: str = ""
+    header: str = ""
+    env_vars: list[str] = field(default_factory=list)
+    how_to_obtain: str = ""
+    session_setup: list[str] = field(default_factory=list)
+    notes: str = ""
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "ApiAuth":
+        return cls(
+            type=str(d.get("type", "")),
+            header=str(d.get("header", "")),
+            env_vars=list(d.get("env_vars") or []),
+            how_to_obtain=str(d.get("how_to_obtain", "")),
+            session_setup=list(d.get("session_setup") or []),
+            notes=str(d.get("notes", "")),
+        )
+
+
+@dataclass
+class ApiConfig:
+    base_url: str = ""
+    auth: ApiAuth = field(default_factory=ApiAuth)
+    rate_limits: str = ""
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "ApiConfig":
+        return cls(
+            base_url=str(d.get("base_url", "")),
+            auth=ApiAuth.from_dict(d.get("auth") or {}),
+            rate_limits=str(d.get("rate_limits", "")),
+        )
+
+
+@dataclass
 class Profile:
     name: str
     display_name: str
-    binary: str
+    interface: str = "cli"
+    binary: str = ""
     homepage: str = ""
     category: str = ""
     detect: Detect = field(default_factory=Detect)
+    api: ApiConfig = field(default_factory=ApiConfig)
     when_to_use: list[str] = field(default_factory=list)
     prefer_over: list[PreferOver] = field(default_factory=list)
     capabilities: list[Capability] = field(default_factory=list)
@@ -133,16 +175,31 @@ class Profile:
     @classmethod
     def from_dict(cls, d: dict, source: str) -> "Profile":
         name = str(_require(d, "name", source))
+        interface = str(d.get("interface", "cli"))
+        if interface not in ("cli", "api"):
+            raise ProfileError(source, f"'interface' must be 'cli' or 'api', got '{interface}'")
+
         capabilities = d.get("capabilities") or []
         if not capabilities:
             raise ProfileError(source, "must declare at least one entry in 'capabilities'")
+
+        binary = str(d.get("binary", ""))
+        if interface == "cli" and not binary:
+            raise ProfileError(source, "interface: cli requires 'binary'")
+
+        api = ApiConfig.from_dict(d.get("api") or {})
+        if interface == "api" and not api.base_url:
+            raise ProfileError(source, "interface: api requires 'api.base_url'")
+
         return cls(
             name=name,
             display_name=str(_require(d, "display_name", source)),
-            binary=str(_require(d, "binary", source)),
+            interface=interface,
+            binary=binary,
             homepage=str(d.get("homepage", "")),
             category=str(d.get("category", "")),
             detect=Detect.from_dict(d.get("detect") or {}),
+            api=api,
             when_to_use=_str_list(d, "when_to_use"),
             prefer_over=[
                 PreferOver.from_dict(p, source) for p in d.get("prefer_over", [])

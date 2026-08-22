@@ -1,0 +1,79 @@
+name: jenkins
+display_name: Jenkins
+interface: api
+category: ci-cd
+homepage: https://www.jenkins.io/doc/book/using/remote-access-api/
+
+detect:
+  auth_check: 'curl -s -u "$JENKINS_USER:$JENKINS_API_TOKEN" "https://{jenkins-host}/api/json"'
+
+api:
+  base_url: "https://{jenkins-host}"
+  auth:
+    type: "basic_api_token"
+    header: 'Authorization: Basic base64("$JENKINS_USER:$JENKINS_API_TOKEN")'
+    env_vars:
+      - JENKINS_USER
+      - JENKINS_API_TOKEN
+    how_to_obtain: "Generate at https://{jenkins-host}/user/{JENKINS_USER}/configure under API Token."
+    session_setup:
+      - >-
+        curl -s -u "$JENKINS_USER:$JENKINS_API_TOKEN"
+        "https://{jenkins-host}/crumbIssuer/api/json"
+    notes: "The session_setup call returns a CSRF crumb ({\"crumbRequestField\": \"Jenkins-Crumb\", \"crumb\": \"...\"}) required as a header on every POST when CSRF protection is enabled (the default). GET requests don't need it."
+  rate_limits: "No standard public rate limit; constrained instead by executor/agent capacity — a queued build is normal, not an error."
+
+when_to_use:
+  - "Triggering a build/pipeline and reporting back its result"
+  - "Checking whether the last build of a job passed before proceeding"
+  - "Reading console output to diagnose a build failure"
+
+prefer_over:
+  - tool: "the Jenkins web UI"
+    reason: "scriptable and works headlessly; the UI requires an interactive session"
+
+capabilities:
+  - task: "Get a job's last build status"
+    method: GET
+    path: "/job/{job}/lastBuild/api/json"
+    command: >-
+      curl -s -u "$JENKINS_USER:$JENKINS_API_TOKEN"
+      "https://{jenkins-host}/job/{job}/lastBuild/api/json"
+    read_only: true
+
+  - task: "Trigger a build"
+    method: POST
+    path: "/job/{job}/build"
+    command: >-
+      curl -s -u "$JENKINS_USER:$JENKINS_API_TOKEN"
+      -H "Jenkins-Crumb: {crumb from session_setup}"
+      -X POST "https://{jenkins-host}/job/{job}/build"
+    notes: "Use /job/{job}/buildWithParameters?param1=... instead if the job takes parameters. The response has no body — 201 with a Location header pointing at the queue item is success."
+    read_only: false
+
+  - task: "Read console output of a build"
+    method: GET
+    path: "/job/{job}/{number}/consoleText"
+    command: >-
+      curl -s -u "$JENKINS_USER:$JENKINS_API_TOKEN"
+      "https://{jenkins-host}/job/{job}/{number}/consoleText"
+    notes: "Plain text, not JSON — this is the one common endpoint that isn't structured; grep/tail it rather than trying to parse as JSON."
+    read_only: true
+
+output_parsing:
+  json_flag: "/api/json suffix on most endpoints; omit for consoleText, which is plain text"
+  common_fields:
+    - path: ".result"
+      meaning: "SUCCESS | FAILURE | UNSTABLE | ABORTED | null (still building)"
+    - path: ".building"
+      meaning: "true while the build is still running"
+  error_handling:
+    - pattern: "403"
+      meaning: "either bad credentials, or a missing/stale Jenkins-Crumb header on a POST — re-fetch the crumb and retry once before assuming a permissions problem"
+    - pattern: "404"
+      meaning: "job or build number doesn't exist — job names are case-sensitive and folder-scoped jobs need the full /job/folder/job/name/ path"
+
+pitfalls:
+  - "POST requests need a fresh CSRF crumb; a crumb fetched much earlier in a long session may have expired the underlying session cookie context — re-fetch it right before a POST rather than reusing one from much earlier."
+  - "Triggering a build queues it; it may not start immediately if all executors are busy — don't treat 'still queued, not yet building' as a failure."
+  - "Never print the API token — treat it exactly like a password, since it grants the same access as the user account it belongs to."

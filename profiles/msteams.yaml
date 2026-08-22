@@ -1,0 +1,79 @@
+name: msteams
+display_name: Microsoft Teams
+interface: api
+category: chat
+homepage: https://learn.microsoft.com/en-us/graph/api/resources/teams-api-overview
+
+detect:
+  auth_check: 'curl -s -H "Authorization: Bearer $MSTEAMS_ACCESS_TOKEN" "https://graph.microsoft.com/v1.0/me"'
+
+api:
+  base_url: "https://graph.microsoft.com/v1.0"
+  auth:
+    type: "oauth2_client_credentials"
+    header: "Authorization: Bearer $MSTEAMS_ACCESS_TOKEN"
+    env_vars:
+      - MSTEAMS_TENANT_ID
+      - MSTEAMS_CLIENT_ID
+      - MSTEAMS_CLIENT_SECRET
+    how_to_obtain: "Register an app in Azure AD (https://portal.azure.com), grant it application permissions for the Graph resources needed (e.g. ChannelMessage.Send, Chat.Read), and get admin consent — application (not delegated) permissions are required for unattended/agent use."
+    session_setup:
+      - >-
+        curl -s -X POST "https://login.microsoftonline.com/$MSTEAMS_TENANT_ID/oauth2/v2.0/token"
+        -d "client_id=$MSTEAMS_CLIENT_ID&client_secret=$MSTEAMS_CLIENT_SECRET&scope=https://graph.microsoft.com/.default&grant_type=client_credentials"
+    notes: "The token from session_setup is short-lived (typically ~1 hour, see expires_in in the response) — fetch a fresh one rather than reusing one from earlier in a long session."
+  rate_limits: "Graph API applies per-tenant throttling; a 429 includes Retry-After."
+
+when_to_use:
+  - "Posting a notification or result into a Teams channel on the user's behalf"
+  - "Reading recent messages in a channel the app has been granted access to"
+
+prefer_over:
+  - tool: "the Teams desktop/web app"
+    reason: "scriptable and works headlessly"
+
+capabilities:
+  - task: "Post a message to a channel (incoming webhook — simplest option, if already configured)"
+    command: >-
+      curl -s -X POST -H "Content-Type: application/json"
+      -d '{"text": "..."}'
+      "$MSTEAMS_WEBHOOK_URL"
+    notes: >-
+      Requires a pre-existing Workflows webhook (Microsoft retired classic Office 365
+      Connectors/incoming webhooks in 2024-2025 in favor of Power Automate Workflows) —
+      confirm one is already set up for the target channel; this path needs no OAuth
+      token, the webhook URL itself is the secret.
+    read_only: false
+
+  - task: "Post a message to a channel via Graph API"
+    method: POST
+    path: "/teams/{team-id}/channels/{channel-id}/messages"
+    command: >-
+      curl -s -H "Authorization: Bearer $MSTEAMS_ACCESS_TOKEN" -H "Content-Type: application/json"
+      -d '{"body": {"content": "..."}}'
+      "https://graph.microsoft.com/v1.0/teams/{team-id}/channels/{channel-id}/messages"
+    notes: "Requires the ChannelMessage.Send application permission with admin consent; not available on all Microsoft 365 plans without additional licensing."
+    read_only: false
+
+  - task: "Read recent messages in a channel"
+    method: GET
+    path: "/teams/{team-id}/channels/{channel-id}/messages"
+    command: >-
+      curl -s -H "Authorization: Bearer $MSTEAMS_ACCESS_TOKEN"
+      "https://graph.microsoft.com/v1.0/teams/{team-id}/channels/{channel-id}/messages"
+    read_only: true
+
+output_parsing:
+  common_fields:
+    - path: ".error.code"
+      meaning: "present on failures — a machine-readable Graph error code (e.g. Forbidden, InvalidAuthenticationToken)"
+  error_handling:
+    - pattern: "InvalidAuthenticationToken"
+      meaning: "access token expired or malformed — re-run the client-credentials request in session_setup"
+    - pattern: "Forbidden"
+      meaning: "app lacks the required permission, or it hasn't been admin-consented"
+
+pitfalls:
+  - "Verify current guidance before wiring up incoming webhooks — Microsoft has been actively retiring the classic Office 365 Connector webhook path in favor of Workflows; a URL that worked previously may need to be reissued."
+  - "Client-credentials tokens expire quickly (~1 hour); fetch one right before use rather than caching it across a long-running task."
+  - "Application (unattended) permissions require admin consent and are a separate concept from delegated (signed-in user) permissions — requesting the wrong kind will fail silently until consent is granted for the correct one."

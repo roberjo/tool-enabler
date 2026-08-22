@@ -12,12 +12,15 @@ from tool_enabler.schema import Profile
 
 
 def _skill_description(p: Profile) -> str:
-    bits = [f"Use when working with {p.display_name} (`{p.binary}`)."]
+    subject = p.display_name if p.interface == "api" else f"{p.display_name} (`{p.binary}`)"
+    bits = [f"Use when working with {subject}."]
     if p.when_to_use:
         bits.append("Covers: " + "; ".join(p.when_to_use) + ".")
     if p.prefer_over:
         reasons = "; ".join(f"prefer over {po.tool} ({po.reason})" for po in p.prefer_over)
         bits.append(reasons + ".")
+    if p.interface == "api" and p.api.auth.env_vars:
+        bits.append("Requires env vars: " + ", ".join(p.api.auth.env_vars) + ".")
     return " ".join(bits)
 
 
@@ -27,7 +30,7 @@ def _yaml_escape(s: str) -> str:
 
 def render_skill(p: Profile) -> tuple[str, str]:
     """Return (skill_slug, skill_md_content)."""
-    slug = f"{p.name}-cli"
+    slug = f"{p.name}-api" if p.interface == "api" else f"{p.name}-cli"
     description = _yaml_escape(_skill_description(p))
     frontmatter = (
         "---\n"

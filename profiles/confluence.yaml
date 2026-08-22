@@ -1,0 +1,84 @@
+name: confluence
+display_name: Confluence (Atlassian Cloud)
+interface: api
+category: documentation
+homepage: https://developer.atlassian.com/cloud/confluence/rest/v2/intro/
+
+detect:
+  auth_check: 'curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "https://{site}.atlassian.net/wiki/api/v2/spaces?limit=1"'
+
+api:
+  base_url: "https://{site}.atlassian.net/wiki/api/v2"
+  auth:
+    type: "basic_api_token"
+    header: 'Authorization: Basic base64("$JIRA_EMAIL:$JIRA_API_TOKEN")'
+    env_vars:
+      - JIRA_EMAIL
+      - JIRA_API_TOKEN
+    how_to_obtain: "Same Atlassian API token as Jira (https://id.atlassian.com/manage-profile/security/api-tokens) — one token/email pair authenticates both products on the same site."
+    notes: "Reuses the exact same credentials as the jira profile; if both are configured for this project, don't duplicate env var names."
+  rate_limits: "Same per-site throttling as Jira; a 429 includes Retry-After."
+
+when_to_use:
+  - "Reading an existing page's content before editing it, or before answering a question about documented process"
+  - "Publishing generated documentation (release notes, design docs, runbooks) as a page instead of a file only the user sees"
+  - "Finding pages in a space by title or label"
+
+prefer_over:
+  - tool: "the Confluence web UI"
+    reason: "scriptable and returns structured JSON; avoids manual copy-paste of generated content"
+
+capabilities:
+  - task: "Get a page's content"
+    method: GET
+    path: "/pages/{id}"
+    command: >-
+      curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN"
+      "https://{site}.atlassian.net/wiki/api/v2/pages/{id}?body-format=storage"
+    notes: "body-format=storage returns Confluence storage-format XHTML, the format writes must also use — not plain text or markdown."
+    read_only: true
+
+  - task: "List pages in a space"
+    method: GET
+    path: "/spaces/{spaceId}/pages"
+    command: >-
+      curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN"
+      "https://{site}.atlassian.net/wiki/api/v2/spaces/{spaceId}/pages?limit=50"
+    notes: "spaceId is a numeric id, not the space key shown in the UI — look it up via GET /spaces?keys={spaceKey} first if only the key is known."
+    read_only: true
+
+  - task: "Create a page"
+    method: POST
+    path: "/pages"
+    command: >-
+      curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -X POST -H "Content-Type: application/json"
+      -d '{"spaceId": "{spaceId}", "status": "current", "title": "...", "body": {"representation": "storage", "value": "<p>...</p>"}}'
+      "https://{site}.atlassian.net/wiki/api/v2/pages"
+    read_only: false
+
+  - task: "Update a page"
+    method: PUT
+    path: "/pages/{id}"
+    command: >-
+      curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -X PUT -H "Content-Type: application/json"
+      -d '{"id": "{id}", "status": "current", "title": "...", "body": {"representation": "storage", "value": "<p>...</p>"}, "version": {"number": {nextVersionNumber}}}'
+      "https://{site}.atlassian.net/wiki/api/v2/pages/{id}"
+    notes: "version.number must be exactly current_version + 1 — GET the page first to read its current version, or the update is rejected with a conflict."
+    read_only: false
+
+output_parsing:
+  common_fields:
+    - path: ".body.storage.value"
+      meaning: "the page content as storage-format XHTML"
+    - path: ".version.number"
+      meaning: "required, incremented by 1, on every update"
+  error_handling:
+    - pattern: "409"
+      meaning: "version conflict — someone else edited the page, or version.number in the request didn't match current+1; re-GET and retry"
+    - pattern: "401"
+      meaning: "bad/revoked API token, or email doesn't match the token owner"
+
+pitfalls:
+  - "Confluence's v2 API uses numeric spaceId/pageId, while the web UI and older v1 API surface space *keys* and different id shapes — don't assume a key from a URL is usable directly as spaceId."
+  - "Page updates require the exact next version number; always re-fetch the page immediately before updating rather than reusing a version number read earlier in the conversation."
+  - "curl does not fail non-zero on HTTP error responses by default — check the status code or response body, not the exit code, to detect a rejected write."
