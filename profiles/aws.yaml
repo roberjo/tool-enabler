@@ -1,0 +1,67 @@
+name: aws
+display_name: AWS CLI
+binary: aws
+homepage: https://aws.amazon.com/cli/
+category: cloud
+
+detect:
+  installed_check: "aws --version"
+  auth_check: "aws sts get-caller-identity"
+  install_hint: "brew install awscli"
+
+when_to_use:
+  - "Inspecting or managing AWS resources (S3, EC2, Lambda, IAM, CloudWatch logs, etc.)"
+  - "Reading CloudWatch logs or metrics to diagnose an issue"
+  - "Checking IAM permissions or resource configuration"
+
+prefer_over:
+  - tool: "AWS web console"
+    reason: "scriptable, returns structured JSON, and works without a browser session"
+
+capabilities:
+  - task: "Confirm which account/identity is currently active"
+    command: "aws sts get-caller-identity"
+    notes: "Run this before any side-effecting command when multiple AWS profiles/accounts are in play."
+    read_only: true
+
+  - task: "List objects in an S3 bucket"
+    command: "aws s3 ls s3://{bucket}/{prefix} --recursive"
+    read_only: true
+
+  - task: "Read recent CloudWatch logs for a Lambda function"
+    command: >-
+      aws logs tail /aws/lambda/{function_name} --since 1h --format short
+    notes: "Add --follow to stream; omit for a one-shot read, which is usually what you want in an agent context."
+    read_only: true
+
+  - task: "Describe an EC2 instance"
+    command: "aws ec2 describe-instances --instance-ids {instance_id} --output json"
+    read_only: true
+
+  - task: "Invoke a Lambda function"
+    command: "aws lambda invoke --function-name {name} --payload '{json}' /tmp/out.json"
+    notes: "Side-effecting if the function has any effect beyond returning a value — treat as such unless known to be pure/idempotent."
+    read_only: false
+
+  - task: "Update a resource (e.g. S3 bucket policy, security group rule)"
+    command: "aws s3api put-bucket-policy / aws ec2 authorize-security-group-ingress / etc."
+    notes: "Side-effecting and often security-sensitive — always confirm with the user before running, and prefer --dry-run where the subcommand supports it."
+    read_only: false
+
+output_parsing:
+  json_flag: "--output json (set globally via `aws configure set output json` or per-call)"
+  common_fields:
+    - path: ".Reservations[].Instances[].State.Name"
+      meaning: "pending | running | shutting-down | terminated | stopping | stopped (EC2 example)"
+  error_handling:
+    - pattern: "Unable to locate credentials"
+      meaning: "no valid AWS credentials configured — check ~/.aws/credentials, AWS_PROFILE, or SSO login"
+    - pattern: "AccessDenied"
+      meaning: "authenticated but IAM policy denies this action"
+    - pattern: "ExpiredToken"
+      meaning: "SSO/temporary credentials expired — re-run `aws sso login`"
+
+pitfalls:
+  - "The active account/region depends on --profile, --region, AWS_PROFILE, and AWS_REGION — always check `aws sts get-caller-identity` and the target region before running anything side-effecting, especially with multiple profiles configured."
+  - "Default CLI output is plain text formatted for terminals; always pass --output json (or set it globally) before attempting to parse results."
+  - "Many `describe-*`/`get-*`/`list-*` calls are paginated by default and truncate results silently — use --no-paginate or handle NextToken when completeness matters."

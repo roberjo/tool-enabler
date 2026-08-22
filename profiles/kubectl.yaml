@@ -1,0 +1,69 @@
+name: kubectl
+display_name: Kubernetes CLI
+binary: kubectl
+homepage: https://kubernetes.io/docs/reference/kubectl/
+category: container-orchestration
+
+detect:
+  installed_check: "kubectl version --client"
+  auth_check: "kubectl auth can-i get pods"
+  install_hint: "brew install kubectl"
+
+when_to_use:
+  - "Inspecting the state of workloads (pods, deployments, services) in a cluster"
+  - "Reading logs from a running or crashed container"
+  - "Diagnosing why a pod is not starting or is crash-looping"
+  - "Applying or rolling back manifests"
+
+prefer_over:
+  - tool: "cluster web dashboards"
+    reason: "faster, scriptable, and works uniformly across clusters/providers"
+
+capabilities:
+  - task: "List pods with status in a namespace"
+    command: "kubectl get pods -n {namespace} -o json"
+    notes: "Use -o json or -o yaml for parsing; the default table output is for humans and its columns vary by resource/version."
+    read_only: true
+
+  - task: "Get the reason a pod is failing (events + describe)"
+    command: "kubectl describe pod {pod_name} -n {namespace}"
+    notes: "Output is unstructured text; look at the 'Events' section at the bottom for the actual failure reason (ImagePullBackOff, CrashLoopBackOff, OOMKilled, etc.)."
+    read_only: true
+
+  - task: "Read logs from a container"
+    command: "kubectl logs {pod_name} -n {namespace} -c {container_name} --tail=200"
+    notes: "Add --previous to get logs from a crashed container's last run instead of the current one."
+    read_only: true
+
+  - task: "Apply a manifest"
+    command: "kubectl apply -f {file_or_dir} -n {namespace}"
+    notes: "Side-effecting — changes live cluster state. Prefer --dry-run=client -o yaml first to preview, and confirm with the user before applying to a production context."
+    read_only: false
+
+  - task: "Check which context/cluster is currently active"
+    command: "kubectl config current-context"
+    read_only: true
+
+  - task: "Roll back a deployment"
+    command: "kubectl rollout undo deployment/{name} -n {namespace}"
+    read_only: false
+
+output_parsing:
+  json_flag: "-o json (or -o yaml, -o jsonpath={...}, -o custom-columns=...)"
+  common_fields:
+    - path: ".status.phase"
+      meaning: "Pending | Running | Succeeded | Failed | Unknown"
+    - path: ".status.containerStatuses[].state"
+      meaning: "one of {running, waiting, terminated} — 'waiting.reason' holds things like CrashLoopBackOff"
+  error_handling:
+    - pattern: "Error from server (NotFound)"
+      meaning: "resource doesn't exist in that namespace/context — double check namespace and current-context"
+    - pattern: "Unable to connect to the server"
+      meaning: "kubeconfig points at an unreachable cluster, or the VPN/proxy required to reach it is down"
+    - pattern: "Forbidden"
+      meaning: "authenticated but RBAC denies this action — check with `kubectl auth can-i`"
+
+pitfalls:
+  - "kubectl always acts on whatever context is currently active (`kubectl config current-context`) — always confirm the context/namespace before running side-effecting commands, especially in multi-cluster setups."
+  - "The default table output truncates and reformats fields differently per kubectl version; never parse it, use -o json/-o yaml instead."
+  - "`kubectl delete` and `kubectl apply` are irreversible in the sense that they affect live traffic — always treat as side-effecting even for a single resource."

@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tool-enabler"
+version = "0.1.0"
+description = "Compile CLI tool knowledge into context files GenAI coding agents actually read."
+requires-python = ">=3.9"
+dependencies = [
+    "PyYAML>=6.0",
+]
+
+[project.scripts]
+tool-enabler = "tool_enabler.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tool_enabler"]

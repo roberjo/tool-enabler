@@ -1,0 +1,71 @@
+name: gh
+display_name: GitHub CLI
+binary: gh
+homepage: https://cli.github.com
+category: vcs-hosting
+
+detect:
+  installed_check: "gh --version"
+  auth_check: "gh auth status"
+  install_hint: "brew install gh"
+
+when_to_use:
+  - "Creating, viewing, or reviewing pull requests without leaving the terminal"
+  - "Reading or writing GitHub issues, releases, or gists"
+  - "Checking CI status on a PR or commit"
+  - "Reading PR review comments to address feedback"
+
+prefer_over:
+  - tool: "web browser"
+    reason: "scriptable and returns structured JSON instead of requiring HTML scraping"
+  - tool: "raw GitHub REST/GraphQL API calls"
+    reason: "handles auth, pagination, and repo context automatically"
+
+capabilities:
+  - task: "View a pull request's details and status checks"
+    command: 'gh pr view {pr_number} --json title,state,statusCheckRollup,reviews'
+    notes: "Always pass --json with explicit fields; unstructured `gh pr view` output is formatted for humans and harder to parse reliably."
+    example_output: |
+      {"title": "Fix login bug", "state": "OPEN", "statusCheckRollup": [{"name": "ci", "conclusion": "SUCCESS"}]}
+    read_only: true
+
+  - task: "List open pull requests"
+    command: 'gh pr list --json number,title,author,updatedAt'
+    read_only: true
+
+  - task: "Read review comments left on a PR"
+    command: 'gh pr view {pr_number} --json reviews,comments'
+    read_only: true
+
+  - task: "Create a pull request"
+    command: 'gh pr create --title "..." --body "..." --base main'
+    notes: "Side-effecting — creates real state on GitHub. Confirm with the user before running unless already authorized to open PRs autonomously."
+    read_only: false
+
+  - task: "Check CI status for the current branch"
+    command: "gh pr checks"
+    read_only: true
+
+  - task: "Read or comment on an issue"
+    command: 'gh issue view {issue_number} --json title,body,comments'
+    read_only: true
+
+output_parsing:
+  json_flag: "--json <field1>,<field2>,..."
+  common_fields:
+    - path: ".state"
+      meaning: "OPEN | CLOSED | MERGED"
+    - path: ".statusCheckRollup[].conclusion"
+      meaning: "SUCCESS | FAILURE | NEUTRAL | null (still running)"
+  error_handling:
+    - exit_code: 1
+      meaning: "generic failure — check stderr for the actual message"
+    - pattern: "gh: To use GitHub CLI in a codespace"
+      meaning: "not authenticated — run `gh auth login`"
+    - pattern: "HTTP 404"
+      meaning: "repo/PR/issue not found, or the authenticated user lacks access"
+
+pitfalls:
+  - "`gh` commands run against the repo of the current working directory by default — use `-R owner/repo` to target a different repo."
+  - "`gh pr view` with no --json prints a human-formatted summary that changes across versions; do not parse it as text."
+  - "Creating PRs, issues, or comments is visible to other people on the repo — always treat these as side-effecting even though the command itself runs instantly."

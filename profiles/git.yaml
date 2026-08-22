@@ -1,0 +1,61 @@
+name: git
+display_name: Git
+binary: git
+homepage: https://git-scm.com
+category: vcs
+
+detect:
+  installed_check: "git --version"
+  auth_check: ""
+  install_hint: "brew install git"
+
+when_to_use:
+  - "Inspecting history, blame, and diffs to understand why code looks the way it does"
+  - "Staging and committing changes on behalf of the user"
+  - "Any repository state question (branch, remotes, status) before taking a risky action"
+
+capabilities:
+  - task: "See what's changed and staged before committing"
+    command: "git status --porcelain=v1"
+    notes: "The --porcelain form is stable across git versions and safe to parse; plain `git status` output is not."
+    read_only: true
+
+  - task: "See the actual diff of pending changes"
+    command: "git diff -- {path}"
+    read_only: true
+
+  - task: "Understand why a specific line looks the way it does"
+    command: "git log -L {start},{end}:{file} --follow"
+    notes: "Better than `git blame` alone when the line has moved across commits/renames."
+    read_only: true
+
+  - task: "Find which commit introduced a bug"
+    command: "git bisect start"
+    notes: "Interactive/stateful across multiple commands — only use when the user wants a bisect session, not for a one-shot lookup."
+    read_only: true
+
+  - task: "Commit staged changes"
+    command: 'git commit -m "..."'
+    notes: "Side-effecting — creates a permanent commit. Only run when the user has asked for a commit, not proactively."
+    read_only: false
+
+  - task: "Push commits to a remote"
+    command: "git push"
+    notes: "Visible to everyone with access to the remote. Never force-push, rebase published history, or push without the user's explicit go-ahead."
+    read_only: false
+
+output_parsing:
+  json_flag: ""
+  common_fields: []
+  error_handling:
+    - pattern: "fatal: not a git repository"
+      meaning: "current directory is outside any git working tree"
+    - pattern: "Your branch is ahead of"
+      meaning: "local commits exist that haven't been pushed to the tracked remote branch"
+    - exit_code: 1
+      meaning: "for `git diff`/`grep` specifically, exit 1 can just mean 'no differences/no matches' rather than an error — check which subcommand before treating as failure"
+
+pitfalls:
+  - "Never run destructive history-rewriting commands (`reset --hard`, `push --force`, `rebase` on shared branches, `clean -fd`) without explicit user confirmation for that specific action — a prior approval does not carry over to a new invocation."
+  - "Plain `git status`/`git log` output formatting is for humans and can vary by config (aliases, color, pager) — prefer --porcelain, -z, or --format for anything you intend to parse."
+  - "A git pager (less) can hang a non-interactive session — set `--no-pager` or `GIT_PAGER=cat` when scripting."
