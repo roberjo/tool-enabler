@@ -7,6 +7,8 @@ category: package-manager
 detect:
   installed_check: "npm --version"
   auth_check: "npm whoami"
+  install_hint: "npm ships with Node.js — install Node via `brew install node` or a version manager (nvm/fnm/volta)."
+  auth_setup: "Run `npm login` (only needed before `npm publish` or installing from a private registry — not required for ordinary installs from the public registry)."
 
 when_to_use:
   - "Installing or updating a Node.js project's dependencies"

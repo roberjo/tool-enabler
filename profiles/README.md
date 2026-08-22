@@ -23,7 +23,14 @@ category: vcs-hosting      # optional, free text — used only for `tool-enabler
 detect:
   installed_check: "gh --version"     # optional — command to confirm the binary exists (cli only)
   auth_check: "gh auth status"        # optional — cheap command/curl call to confirm auth works
-  install_hint: "brew install gh"     # optional — shown to the agent if missing (cli only)
+  install_hint: "`brew install gh`"   # optional — the actual fix if installed_check fails. Rendered
+                                       # as-is (not auto-wrapped in backticks) so prose can embed its
+                                       # own `command` — wrap simple values in backticks yourself.
+  auth_setup: "Run `gh auth login`."  # optional — the actual fix if auth_check fails. Same free-text
+                                       # rule as install_hint. For a tool with no login command (git,
+                                       # kubectl, ssh, a DB client reading a connection string), say so
+                                       # explicitly and point at the real fix (see git.yaml, ssh.yaml,
+                                       # psql.yaml) rather than leaving this blank.
 
 # api: block — required when interface: api, ignored for interface: cli
 api:
@@ -99,6 +106,13 @@ pitfalls:                     # optional list of strings
 3. Mark every capability's `read_only` accurately — this flows into the
    generated docs as a confirm-before-running note for side-effecting
    commands.
-4. Run `tool-enabler validate` to check the file loads.
-5. Run `tool-enabler build --target <some project>` to see the generated
+4. Fill in `detect.install_hint` and `detect.auth_setup` (cli), or
+   `api.auth.how_to_obtain`/`session_setup` (api) — every profile should tell
+   the agent what to actually do when the tool turns out to be missing or
+   unauthenticated, not just how to detect that state. If there's no real
+   login command (a DB client reading a connection string, ssh's key-based
+   auth, a tool that delegates to another profile), say so explicitly rather
+   than leaving the field blank — see `psql.yaml`, `ssh.yaml`, `kubectl.yaml`.
+5. Run `tool-enabler validate` to check the file loads.
+6. Run `tool-enabler build --target <some project>` to see the generated
    output before committing.

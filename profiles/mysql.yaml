@@ -6,6 +6,8 @@ category: database
 
 detect:
   installed_check: "mysql --version"
+  install_hint: "`brew install mysql-client` (then add it to PATH — Homebrew doesn't link it by default to avoid clashing with a full mysql-server install)."
+  auth_setup: "No login command — credentials come from -u/-p flags, environment, or ~/.my.cnf. Ask the user for the correct host/credentials rather than guessing them."
 
 when_to_use:
   - "Running a read-only query to inspect data or schema while debugging"

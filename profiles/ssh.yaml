@@ -6,6 +6,8 @@ category: remote-access
 
 detect:
   installed_check: "ssh -V"
+  install_hint: "Pre-installed on macOS and most Linux distros; if genuinely missing, `brew install openssh`."
+  auth_setup: "No CLI login command — access is granted by an admin adding a public key to the target host's authorized_keys (or the hosting provider's account settings). If publickey auth fails, that's an out-of-band access request to make, not something to retry or automate around."
 
 when_to_use:
   - "Running a diagnostic command on a remote host to gather information (checking a log file, process status, disk space)"

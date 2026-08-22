@@ -7,7 +7,8 @@ category: ci-cd
 detect:
   installed_check: "argocd version --client"
   auth_check: "argocd account get-user-info"
-  install_hint: "brew install argocd"
+  install_hint: "`brew install argocd`"
+  auth_setup: "Run `argocd login {server}` (prompts for username/password or SSO, then caches a session token in ~/.argocd/config). Add --sso if the instance uses single sign-on."
 
 when_to_use:
   - "Checking an application's sync/health status before or after a deploy"

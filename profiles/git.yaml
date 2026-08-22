@@ -7,7 +7,8 @@ category: vcs
 detect:
   installed_check: "git --version"
   auth_check: ""
-  install_hint: "brew install git"
+  install_hint: "`brew install git`"
+  auth_setup: "No login step of its own. HTTPS remotes need a credential helper (e.g. `gh auth setup-git` if the remote is GitHub) or a stored personal access token; SSH remotes need a key added to the hosting provider's account settings."
 
 when_to_use:
   - "Inspecting history, blame, and diffs to understand why code looks the way it does"

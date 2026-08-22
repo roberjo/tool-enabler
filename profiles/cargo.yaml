@@ -6,6 +6,8 @@ category: package-manager
 
 detect:
   installed_check: "cargo --version"
+  install_hint: "`brew install rust` (or the official rustup installer at https://rustup.rs for toolchain management — prefer asking the user before piping a remote install script into a shell)"
+  auth_setup: "Run `cargo login` (only needed before `cargo publish` — not required for ordinary builds using public crates.io packages)."
 
 when_to_use:
   - "Building, testing, or running a Rust project"

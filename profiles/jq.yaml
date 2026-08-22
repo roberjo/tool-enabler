@@ -6,6 +6,7 @@ category: output-parsing
 
 detect:
   installed_check: "jq --version"
+  install_hint: "`brew install jq`"
 
 when_to_use:
   - "Extracting a specific field or reshaping JSON output from another command before deciding on a next step"

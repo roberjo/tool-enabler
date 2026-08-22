@@ -6,6 +6,8 @@ category: package-manager
 
 detect:
   installed_check: "pip --version"
+  install_hint: "pip ships with Python — install Python via `brew install python` or a version manager (pyenv/uv)."
+  auth_setup: "No login step for the public index. For a private index, credentials go in the index URL or a pip.conf/environment variable (PIP_INDEX_URL) — ask the user for the correct index URL/token rather than guessing one."
 
 when_to_use:
   - "Installing a Python project's dependencies"

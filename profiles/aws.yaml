@@ -7,7 +7,8 @@ category: cloud
 detect:
   installed_check: "aws --version"
   auth_check: "aws sts get-caller-identity"
-  install_hint: "brew install awscli"
+  install_hint: "`brew install awscli`"
+  auth_setup: "Run `aws sso login --profile {profile}` for SSO-based accounts, or `aws configure` to set a static access key/secret directly. Ask the user which one their org uses rather than guessing."
 
 when_to_use:
   - "Inspecting or managing AWS resources (S3, EC2, Lambda, IAM, CloudWatch logs, etc.)"

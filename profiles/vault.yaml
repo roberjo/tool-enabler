@@ -7,6 +7,8 @@ category: secrets
 detect:
   installed_check: "vault --version"
   auth_check: "vault token lookup -format=json"
+  install_hint: "`brew install vault`"
+  auth_setup: "Run `vault login -method={method}` — the method (oidc, userpass, token, approle, etc.) is org-specific; ask the user which one their org uses rather than guessing."
 
 when_to_use:
   - "Reading a secret needed to complete a task instead of asking the user to paste it into the conversation"

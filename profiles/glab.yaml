@@ -7,7 +7,8 @@ category: vcs-hosting
 detect:
   installed_check: "glab --version"
   auth_check: "glab auth status"
-  install_hint: "brew install glab"
+  install_hint: "`brew install glab`"
+  auth_setup: "Run `glab auth login` and follow the prompts (supports GitLab.com or a self-managed instance via --hostname)."
 
 when_to_use:
   - "Creating, viewing, or reviewing merge requests without leaving the terminal"

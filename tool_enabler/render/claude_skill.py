@@ -21,6 +21,10 @@ def _skill_description(p: Profile) -> str:
         bits.append(reasons + ".")
     if p.interface == "api" and p.api.auth.env_vars:
         bits.append("Requires env vars: " + ", ".join(p.api.auth.env_vars) + ".")
+    bits.append(
+        "Also use this if the tool turns out to be missing or not authenticated — "
+        "it includes install/auth setup steps."
+    )
     return " ".join(bits)
 
 

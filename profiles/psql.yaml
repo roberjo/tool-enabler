@@ -6,6 +6,8 @@ category: database
 
 detect:
   installed_check: "psql --version"
+  install_hint: "brew install libpq (then `brew link --force libpq` to get psql on PATH), or `brew install postgresql` for the full server + client."
+  auth_setup: "No login command — credentials come from DATABASE_URL/PGPASSWORD. Ask the user for the correct connection string rather than guessing one; there's no discoverable default to fall back to."
 
 when_to_use:
   - "Running a read-only query to inspect data or schema while debugging"

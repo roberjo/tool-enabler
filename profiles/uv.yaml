@@ -6,6 +6,8 @@ category: package-manager
 
 detect:
   installed_check: "uv --version"
+  install_hint: "`brew install uv`"
+  auth_setup: "No login step for the public index. For a private index, set it via UV_INDEX_URL/.netrc — ask the user for the correct URL/credentials rather than guessing."
 
 when_to_use:
   - "Installing/syncing a Python project's dependencies when the project uses uv (pyproject.toml + uv.lock present)"

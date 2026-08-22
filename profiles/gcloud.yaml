@@ -7,7 +7,8 @@ category: cloud
 detect:
   installed_check: "gcloud version"
   auth_check: "gcloud auth list --format=json"
-  install_hint: "brew install --cask google-cloud-sdk"
+  install_hint: "`brew install --cask google-cloud-sdk`"
+  auth_setup: "Run `gcloud auth login` (opens a browser) for an interactive session, or `gcloud auth activate-service-account --key-file={path}` for non-interactive auth."
 
 when_to_use:
   - "Inspecting or managing GCP resources (Compute Engine, GKE, Cloud Storage, Cloud Functions, Cloud Run, etc.)"

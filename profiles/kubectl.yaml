@@ -7,7 +7,8 @@ category: container-orchestration
 detect:
   installed_check: "kubectl version --client"
   auth_check: "kubectl auth can-i get pods"
-  install_hint: "brew install kubectl"
+  install_hint: "`brew install kubectl`"
+  auth_setup: "No login step of its own — auth comes from the active kubeconfig (~/.kube/config), usually populated by the cluster provider's own CLI (e.g. `aws eks update-kubeconfig`, `az aks get-credentials`, `gcloud container clusters get-credentials`). Ask the user which cluster/provider if it's unclear which one populates it here."
 
 when_to_use:
   - "Inspecting the state of workloads (pods, deployments, services) in a cluster"

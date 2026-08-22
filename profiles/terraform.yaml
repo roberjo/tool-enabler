@@ -6,7 +6,8 @@ category: infrastructure-as-code
 
 detect:
   installed_check: "terraform version"
-  install_hint: "brew install terraform"
+  install_hint: "`brew install terraform`"
+  auth_setup: "No login step of its own — auth is delegated entirely to whichever provider block is configured (see the aws/az/gcloud profiles' auth_setup for the actual fix)."
 
 when_to_use:
   - "Previewing what an infrastructure change would do before making it"

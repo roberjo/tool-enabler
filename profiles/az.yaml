@@ -7,7 +7,8 @@ category: cloud
 detect:
   installed_check: "az version"
   auth_check: "az account show"
-  install_hint: "brew install azure-cli"
+  install_hint: "`brew install azure-cli`"
+  auth_setup: "Run `az login` (opens a browser) for an interactive session, or `az login --service-principal -u {app_id} -p {password_or_cert} --tenant {tenant}` for non-interactive auth."
 
 when_to_use:
   - "Inspecting or managing Azure resources (VMs, storage, AKS, App Service, etc.)"

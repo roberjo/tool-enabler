@@ -6,7 +6,8 @@ category: container-orchestration
 
 detect:
   installed_check: "stern --version"
-  install_hint: "brew install stern"
+  install_hint: "`brew install stern`"
+  auth_setup: "No login step of its own — delegates to the active kubeconfig, same as kubectl (see that profile's auth_setup)."
 
 when_to_use:
   - "Tailing logs across multiple pods/containers matching a name or label at once, when kubectl logs would require picking one pod at a time"

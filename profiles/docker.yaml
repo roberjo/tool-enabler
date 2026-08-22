@@ -7,7 +7,8 @@ category: containers
 detect:
   installed_check: "docker --version"
   auth_check: "docker info"
-  install_hint: "brew install --cask docker"
+  install_hint: "`brew install --cask docker`"
+  auth_setup: "`docker info` failing usually means the daemon isn't running (start Docker Desktop / the docker service) rather than an auth problem. Registry auth is separate: run `docker login {registry}` (defaults to Docker Hub if omitted) only when a pull/push is actually rejected for lacking credentials."
 
 when_to_use:
   - "Inspecting running containers, images, or their logs"

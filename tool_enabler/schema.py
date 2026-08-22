@@ -110,6 +110,7 @@ class Detect:
     installed_check: str = ""
     auth_check: str = ""
     install_hint: str = ""
+    auth_setup: str = ""
 
     @classmethod
     def from_dict(cls, d: dict) -> "Detect":
@@ -117,6 +118,7 @@ class Detect:
             installed_check=str(d.get("installed_check", "")),
             auth_check=str(d.get("auth_check", "")),
             install_hint=str(d.get("install_hint", "")),
+            auth_setup=str(d.get("auth_setup", "")),
         )
 
 

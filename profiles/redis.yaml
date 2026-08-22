@@ -6,6 +6,8 @@ category: database
 
 detect:
   installed_check: "redis-cli --version"
+  install_hint: "`brew install redis`"
+  auth_setup: "No login command — credentials are embedded in REDIS_URL (or supplied via AUTH at runtime). Ask the user for the correct connection string rather than guessing one."
 
 when_to_use:
   - "Inspecting a cached value or checking whether a key exists while debugging"

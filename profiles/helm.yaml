@@ -6,7 +6,8 @@ category: container-orchestration
 
 detect:
   installed_check: "helm version"
-  install_hint: "brew install helm"
+  install_hint: "`brew install helm`"
+  auth_setup: "No login step of its own — delegates to the active kubeconfig, same as kubectl (see that profile's auth_setup). Only needed separately if pulling charts from an OCI registry requiring auth: `helm registry login {registry}`."
 
 when_to_use:
   - "Installing, upgrading, or inspecting a Kubernetes application packaged as a Helm chart"

@@ -7,7 +7,8 @@ category: vcs-hosting
 detect:
   installed_check: "gh --version"
   auth_check: "gh auth status"
-  install_hint: "brew install gh"
+  install_hint: "`brew install gh`"
+  auth_setup: "Run `gh auth login` and follow the prompts (browser or token-based flow)."
 
 when_to_use:
   - "Creating, viewing, or reviewing pull requests without leaving the terminal"

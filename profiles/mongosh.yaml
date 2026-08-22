@@ -6,6 +6,8 @@ category: database
 
 detect:
   installed_check: "mongosh --version"
+  install_hint: "`brew install mongosh`"
+  auth_setup: "No login command — credentials are embedded in MONGODB_URI. Ask the user for the correct connection string rather than guessing one."
 
 when_to_use:
   - "Running a read-only query to inspect documents while debugging"

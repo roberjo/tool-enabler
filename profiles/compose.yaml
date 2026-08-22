@@ -6,6 +6,8 @@ category: containers
 
 detect:
   installed_check: "docker compose version"
+  install_hint: "Ships with Docker Desktop; on Linux, `brew install docker-compose` or the docker-compose-plugin package for your distro."
+  auth_setup: "No login step of its own — delegates to `docker login {registry}` for registry auth when pulling private images (see the docker profile)."
 
 when_to_use:
   - "Bringing up or tearing down a multi-container local dev/test environment defined in a compose file"
