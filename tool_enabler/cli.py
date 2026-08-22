@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
 import yaml
 
-from tool_enabler.loader import filter_profiles, load_catalog
+from tool_enabler.loader import filter_profiles, load_catalogs
 from tool_enabler.render.claude_skill import render_skill
 from tool_enabler.render.markdown import render_catalog_markdown
 from tool_enabler.render.section import upsert_section
+from tool_enabler.scaffold import render_new_profile
 from tool_enabler.schema import ProfileError
 
 DEFAULT_CATALOG = Path(__file__).resolve().parent.parent / "profiles"
+
+NAME_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 
 ALL_TARGETS = ["claude", "agents", "gemini", "copilot"]
 
@@ -23,6 +27,12 @@ TARGET_FILES = {
 }
 
 MANIFEST_NAME = ".tool-enabler.yaml"
+
+
+def _parse_catalog_arg(raw: str) -> list[Path]:
+    """--catalog accepts a comma-separated list so a private catalog of your
+    own custom tool profiles can be merged with the public one in one build."""
+    return [Path(p.strip()) for p in raw.split(",") if p.strip()]
 
 
 def _load_manifest_tools(target: Path) -> list[str] | None:
@@ -39,7 +49,7 @@ def _load_manifest_tools(target: Path) -> list[str] | None:
 
 def cmd_list(args: argparse.Namespace) -> int:
     try:
-        profiles = load_catalog(Path(args.catalog))
+        profiles = load_catalogs(_parse_catalog_arg(args.catalog))
     except (ProfileError, FileNotFoundError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -56,7 +66,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 def cmd_validate(args: argparse.Namespace) -> int:
     try:
-        profiles = load_catalog(Path(args.catalog))
+        profiles = load_catalogs(_parse_catalog_arg(args.catalog))
     except (ProfileError, FileNotFoundError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -65,11 +75,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def cmd_build(args: argparse.Namespace) -> int:
-    catalog_dir = Path(args.catalog)
     target_dir = Path(args.target)
 
     try:
-        catalog = load_catalog(catalog_dir)
+        catalog = load_catalogs(_parse_catalog_arg(args.catalog))
     except (ProfileError, FileNotFoundError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -130,7 +139,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        catalog = load_catalog(Path(args.catalog))
+        catalog = load_catalogs(_parse_catalog_arg(args.catalog))
     except (ProfileError, FileNotFoundError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -152,6 +161,41 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_new(args: argparse.Namespace) -> int:
+    name = args.name
+    if not NAME_RE.match(name):
+        print(
+            f"error: '{name}' isn't a valid profile name — use lowercase letters, "
+            "digits, hyphens, or underscores, starting with a letter (e.g. 'my-tool').",
+            file=sys.stderr,
+        )
+        return 1
+
+    catalog_dirs = _parse_catalog_arg(args.catalog)
+    if len(catalog_dirs) != 1:
+        print(
+            "error: `new` writes into a single directory — pass exactly one --catalog path "
+            "(the comma-separated multi-catalog form is only for list/validate/build).",
+            file=sys.stderr,
+        )
+        return 1
+    catalog_dir = catalog_dirs[0]
+    out_path = catalog_dir / f"{name}.yaml"
+    if out_path.exists() and not args.force:
+        print(f"error: {out_path} already exists (use --force to overwrite)", file=sys.stderr)
+        return 1
+
+    catalog_dir.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(render_new_profile(name, args.interface))
+
+    print(f"Wrote {out_path}")
+    print("Next steps:")
+    print(f"  1. Fill in every TODO in {out_path}")
+    print(f"  2. tool-enabler validate --catalog {catalog_dir}")
+    print(f"  3. tool-enabler build --catalog {catalog_dir} --target <a project> --tools {name}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tool-enabler",
@@ -161,7 +205,13 @@ def build_parser() -> argparse.ArgumentParser:
     catalog_parent.add_argument(
         "--catalog",
         default=str(DEFAULT_CATALOG),
-        help=f"path to the profiles catalog directory (default: {DEFAULT_CATALOG})",
+        help=(
+            "comma-separated profile catalog directories, merged together "
+            f"(default: {DEFAULT_CATALOG}). Point a second entry at your own "
+            "directory of custom tool profiles to combine them with the public "
+            "catalog, e.g. --catalog profiles,~/my-org/agent-tool-profiles. "
+            "`new` takes exactly one directory to write into."
+        ),
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
@@ -199,6 +249,23 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"comma-separated targets to render: {ALL_TARGETS} (default: all)",
     )
     p_build.set_defaults(func=cmd_build)
+
+    p_new = sub.add_parser(
+        "new",
+        parents=[catalog_parent],
+        help="scaffold a new profile skeleton (e.g. for your own custom CLI tool)",
+    )
+    p_new.add_argument("name", help="profile slug, e.g. 'my-tool' — becomes <name>.yaml")
+    p_new.add_argument(
+        "--interface",
+        choices=["cli", "api"],
+        default="cli",
+        help="cli for a local binary (default), api for an HTTP-only system",
+    )
+    p_new.add_argument(
+        "--force", action="store_true", help="overwrite an existing profile of the same name"
+    )
+    p_new.set_defaults(func=cmd_new)
 
     return parser
 

@@ -37,6 +37,28 @@ def load_catalog(profiles_dir: Path) -> list[Profile]:
     return profiles
 
 
+def load_catalogs(profiles_dirs: list[Path]) -> list[Profile]:
+    """Load and merge multiple catalog directories, e.g. the public catalog
+    plus a private one holding your own custom tool profiles.
+
+    Raises ProfileError if the same profile name appears in more than one
+    directory — rename one of them rather than letting either shadow the
+    other silently.
+    """
+    profiles: list[Profile] = []
+    seen_names: dict[str, Path] = {}
+    for profiles_dir in profiles_dirs:
+        for profile in load_catalog(profiles_dir):
+            if profile.name in seen_names:
+                raise ProfileError(
+                    str(profiles_dir),
+                    f"duplicate profile name '{profile.name}' (also defined under {seen_names[profile.name]})",
+                )
+            seen_names[profile.name] = profiles_dir
+            profiles.append(profile)
+    return profiles
+
+
 def filter_profiles(profiles: list[Profile], names: list[str] | None) -> list[Profile]:
     """Restrict a catalog to the given profile names, preserving catalog order.
 

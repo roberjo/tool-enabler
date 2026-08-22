@@ -98,7 +98,17 @@ pitfalls:                     # optional list of strings
 
 ## Adding a new tool
 
-1. Copy an existing profile as a starting point.
+Adding your own custom/internal tool as a profile in your own catalog
+directory (not this repo)? See [docs/custom-tools.md](../docs/custom-tools.md)
+for a complete worked example — the steps below still apply, but that doc
+walks through the internal-tool-specific parts (install/auth with no public
+equivalent) field by field.
+
+1. Run `tool-enabler new <name> [--interface cli|api]` to generate a
+   commented skeleton instead of starting from a blank file — see
+   `tool-enabler new --help`. Alternatively, copy an existing profile as a
+   starting point (useful when your tool closely resembles one already in
+   the catalog) and strip anything specific to the tool you copied from.
 2. Fill in `capabilities` first — this is the only required section, and it's
    the part that actually saves the agent from guessing flags. Write commands
    the way you'd want an agent to actually run them (explicit `--json` fields,
