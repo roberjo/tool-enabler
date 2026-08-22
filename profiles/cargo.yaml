@@ -1,0 +1,54 @@
+name: cargo
+display_name: Cargo
+binary: cargo
+homepage: https://doc.rust-lang.org/cargo/
+category: package-manager
+
+detect:
+  installed_check: "cargo --version"
+
+when_to_use:
+  - "Building, testing, or running a Rust project"
+  - "Checking for compiler errors/warnings before considering a change complete"
+  - "Adding or updating a dependency"
+
+capabilities:
+  - task: "Check for compiler errors without a full build"
+    command: "cargo check --message-format=json"
+    notes: "Faster than a full build for verifying correctness. Emits newline-delimited JSON, not a single array — parse line by line."
+    read_only: true
+
+  - task: "Build the project"
+    command: "cargo build --message-format=json"
+    read_only: false
+
+  - task: "Run the test suite"
+    command: "cargo test"
+    notes: "Stable Rust's test output is plain text (per-test PASS/FAILED, then a summary line) — machine-readable JSON test results need either a nightly toolchain with unstable flags or a separate tool like cargo-nextest; don't assume --message-format=json covers test results the way it covers build errors."
+    read_only: true
+
+  - task: "Add a dependency"
+    command: "cargo add {crate}"
+    notes: "Modifies Cargo.toml and Cargo.lock."
+    read_only: false
+
+  - task: "Publish a crate"
+    command: "cargo publish"
+    notes: "Public and cannot be undone for a given version — crates.io disallows re-publishing or reusing a yanked version number. Never run without explicit user confirmation."
+    read_only: false
+
+output_parsing:
+  json_flag: "--message-format=json on build/check — newline-delimited JSON objects, one per compiler message or artifact"
+  common_fields:
+    - path: ".reason"
+      meaning: "\"compiler-message\" | \"compiler-artifact\" | \"build-finished\", among others"
+    - path: ".message.level"
+      meaning: "on compiler-message entries: \"error\" | \"warning\" | \"note\""
+  error_handling:
+    - pattern: "error[E"
+      meaning: "a specific rustc error code — `rustc --explain {code}` gives a plain-English explanation"
+
+pitfalls:
+  - "--message-format=json output is newline-delimited (one JSON object per line), not a single array or object — parse line by line, not as one JSON.parse() call."
+  - "Test results on stable Rust are plain text, not JSON, even though build/check output can be JSON — don't conflate the two flags' capabilities."
+  - "`cargo publish` is public and permanent for that version number — confirm explicitly before running."

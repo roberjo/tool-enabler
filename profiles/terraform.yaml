@@ -1,0 +1,61 @@
+name: terraform
+display_name: Terraform
+binary: terraform
+homepage: https://developer.hashicorp.com/terraform/cli
+category: infrastructure-as-code
+
+detect:
+  installed_check: "terraform version"
+  install_hint: "brew install terraform"
+
+when_to_use:
+  - "Previewing what an infrastructure change would do before making it"
+  - "Applying a reviewed infrastructure change"
+  - "Inspecting current state to understand what's actually deployed"
+
+prefer_over:
+  - tool: "the cloud provider's web console"
+    reason: "plan output is deterministic and reviewable before anything is actually changed"
+
+capabilities:
+  - task: "Preview changes without applying them"
+    command: "terraform plan -out=tfplan"
+    notes: "Writing a plan file is local-only and safe to run freely."
+    read_only: true
+
+  - task: "Render a plan as structured JSON for review"
+    command: "terraform show -json tfplan"
+    read_only: true
+
+  - task: "Show current state"
+    command: "terraform show -json"
+    notes: "State can contain sensitive values in plaintext (e.g. generated passwords) — don't print full state output into logs indiscriminately."
+    read_only: true
+
+  - task: "List resources tracked in state"
+    command: "terraform state list"
+    read_only: true
+
+  - task: "Apply a reviewed plan"
+    command: "terraform apply tfplan"
+    notes: "Directly and often irreversibly modifies real infrastructure. Only run against a plan file that was just generated and reviewed — a stale plan can silently apply something different if remote state changed in between. Never use -auto-approve without prior human review of the diff."
+    read_only: false
+
+  - task: "Destroy resources"
+    command: "terraform destroy"
+    notes: "Extremely destructive. Only run on explicit user request, with the plan reviewed first — never infer this is wanted."
+    read_only: false
+
+output_parsing:
+  json_flag: "-json on plan/show/output"
+  common_fields:
+    - path: ".resource_changes[].change.actions"
+      meaning: "array like [\"create\"], [\"update\"], [\"delete\"], or [\"delete\",\"create\"] (replace) per resource"
+  error_handling:
+    - pattern: "Error acquiring the state lock"
+      meaning: "another process or apply currently holds the state lock — wait and retry, don't force-unlock without understanding why it's held"
+
+pitfalls:
+  - "Never run `terraform apply -auto-approve` or `terraform destroy` without the user's explicit go-ahead — these modify real infrastructure, often irreversibly."
+  - "Always plan and review the diff before applying; a plan file generated earlier can go stale if remote state changed since — regenerate close to apply time rather than reusing an old one."
+  - "Auth to the actual cloud provider is delegated entirely to that provider's own credentials (see the aws/az/gcloud profiles) — terraform itself has no separate login step to check."

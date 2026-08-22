@@ -1,0 +1,62 @@
+name: helm
+display_name: Helm
+binary: helm
+homepage: https://helm.sh/docs/helm/helm/
+category: container-orchestration
+
+detect:
+  installed_check: "helm version"
+  install_hint: "brew install helm"
+
+when_to_use:
+  - "Installing, upgrading, or inspecting a Kubernetes application packaged as a Helm chart"
+  - "Checking what a chart upgrade would change before applying it"
+  - "Rolling back a bad release"
+
+prefer_over:
+  - tool: "hand-written kubectl apply for a multi-resource application"
+    reason: "helm tracks release history and revisions, making rollback possible"
+
+capabilities:
+  - task: "List releases in a namespace"
+    command: "helm list -n {namespace} -o json"
+    read_only: true
+
+  - task: "Show a release's current values"
+    command: "helm get values {release} -n {namespace} -o json"
+    read_only: true
+
+  - task: "Preview an upgrade without applying it"
+    command: "helm upgrade --install {release} {chart} -n {namespace} -f {values_file} --dry-run"
+    notes: "For a real diff against the live cluster (not just rendered manifests), the helm-diff plugin's `helm diff upgrade` is more useful but isn't installed by default — check with `helm plugin list` first."
+    read_only: true
+
+  - task: "Install or upgrade a release"
+    command: "helm upgrade --install {release} {chart} -n {namespace} -f {values_file}"
+    notes: "Same context/namespace caution as kubectl applies — confirm the active kubeconfig context before running against anything shared or production."
+    read_only: false
+
+  - task: "Roll back a release"
+    command: "helm rollback {release} {revision} -n {namespace}"
+    read_only: false
+
+  - task: "Uninstall a release"
+    command: "helm uninstall {release} -n {namespace}"
+    notes: "Destructive — removes the release's resources from the cluster."
+    read_only: false
+
+output_parsing:
+  json_flag: "-o json (or -o yaml)"
+  common_fields:
+    - path: ".info.status"
+      meaning: "deployed | failed | pending-upgrade | pending-install, among others"
+  error_handling:
+    - pattern: "release: not found"
+      meaning: "wrong release name or namespace"
+    - pattern: "UPGRADE FAILED"
+      meaning: "often another operation already in progress, or an invalid values file — check `helm history {release}` for context before retrying"
+
+pitfalls:
+  - "Helm operates against whichever kubeconfig context is currently active — same context/namespace caution as kubectl; always confirm before an upgrade or uninstall."
+  - "A bad values file can still roll out a broken release even though `helm upgrade --install` itself is idempotent — prefer --dry-run or a diff first for any non-trivial change."
+  - "Rollback depends on retained revision history (bounded by --history-max at install time) — don't assume an arbitrarily old revision is still available."

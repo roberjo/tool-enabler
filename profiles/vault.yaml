@@ -1,0 +1,52 @@
+name: vault
+display_name: HashiCorp Vault
+binary: vault
+homepage: https://developer.hashicorp.com/vault/docs/commands
+category: secrets
+
+detect:
+  installed_check: "vault --version"
+  auth_check: "vault token lookup -format=json"
+
+when_to_use:
+  - "Reading a secret needed to complete a task instead of asking the user to paste it into the conversation"
+  - "Checking whether a secret path exists before assuming its shape"
+
+prefer_over:
+  - tool: "asking the user to paste credentials directly"
+    reason: "keeps secret values out of the conversation transcript entirely"
+
+capabilities:
+  - task: "Read a secret"
+    command: "vault kv get -format=json {path}"
+    notes: "For the KV v2 engine (the modern default), the actual key/value data is nested under .data.data, not .data — a naive .data read gets version metadata instead of the secret."
+    read_only: true
+
+  - task: "List secrets at a path"
+    command: "vault kv list -format=json {path}"
+    read_only: true
+
+  - task: "Check the current token's validity and permissions"
+    command: "vault token lookup -format=json"
+    read_only: true
+
+  - task: "Write or update a secret"
+    command: "vault kv put {path} key=value"
+    notes: "Overwrites the secret at that path (KV v2 keeps prior versions, but still confirm before running)."
+    read_only: false
+
+output_parsing:
+  json_flag: "-format=json"
+  common_fields:
+    - path: ".data.data"
+      meaning: "on a KV v2 engine, the actual secret key/value pairs — .data alone is just metadata (version, timestamps)"
+  error_handling:
+    - pattern: "permission denied"
+      meaning: "the current token's policy doesn't grant access to this path"
+    - pattern: "403"
+      meaning: "token expired or revoked — needs a fresh login, not a retry of the same call"
+
+pitfalls:
+  - "KV v2 nests actual secret data at .data.data, not .data — check the engine version if a read looks like it's missing the values."
+  - "Never print a secret's value into logs, commit messages, or unrelated output — read it, use it in memory for the immediate task, and don't echo it back."
+  - "Vault tokens have a TTL and can be revoked — a call that worked minutes ago can start failing with 403 purely from expiry, not because the path changed."

@@ -1,0 +1,68 @@
+name: az
+display_name: Azure CLI
+binary: az
+homepage: https://learn.microsoft.com/en-us/cli/azure/
+category: cloud
+
+detect:
+  installed_check: "az version"
+  auth_check: "az account show"
+  install_hint: "brew install azure-cli"
+
+when_to_use:
+  - "Inspecting or managing Azure resources (VMs, storage, AKS, App Service, etc.)"
+  - "Reading logs/metrics via Azure Monitor to diagnose an issue"
+  - "Confirming which subscription/tenant is active before doing anything else"
+
+prefer_over:
+  - tool: "the Azure Portal"
+    reason: "scriptable and returns structured JSON"
+
+capabilities:
+  - task: "Confirm the active subscription and account"
+    command: "az account show"
+    notes: "Run before anything side-effecting when multiple subscriptions/tenants are configured."
+    read_only: true
+
+  - task: "List resource groups"
+    command: "az group list -o json"
+    read_only: true
+
+  - task: "Show a resource's details"
+    command: "az resource show --ids {resource_id} -o json"
+    read_only: true
+
+  - task: "Query logs via Azure Monitor"
+    command: 'az monitor log-analytics query -w {workspace_id} --analytics-query "{kql_query}" -o json'
+    read_only: true
+
+  - task: "Switch the active subscription"
+    command: "az account set --subscription {subscription_id}"
+    notes: "Local context change only, but it's persistent across subsequent commands in this shell/profile — confirm which subscription is active again afterward if picking back up a task later."
+    read_only: true
+
+  - task: "Create or update a resource"
+    command: "az {service} create ..."
+    notes: "Side-effecting — confirm before running, and confirm the active subscription first."
+    read_only: false
+
+  - task: "Delete a resource"
+    command: "az resource delete --ids {resource_id}"
+    notes: "Destructive and often irreversible."
+    read_only: false
+
+output_parsing:
+  json_flag: "-o json (default output is a human table unless configured otherwise)"
+  common_fields:
+    - path: ".provisioningState"
+      meaning: "Succeeded | Failed | Updating | Deleting, among others"
+  error_handling:
+    - pattern: "Please run 'az login'"
+      meaning: "not authenticated, or the cached credentials expired"
+    - pattern: "AuthorizationFailed"
+      meaning: "authenticated but RBAC denies this action on this resource"
+
+pitfalls:
+  - "The active subscription (`az account show`) persists across commands and can silently be the wrong one in a multi-subscription setup — confirm it before running anything side-effecting."
+  - "Default output format is a human-readable table — always pass -o json when the result needs to be parsed."
+  - "Many `az` commands return once an operation is accepted, not necessarily once it's complete — check provisioningState afterward rather than assuming immediate completion, unless --no-wait was intentional."

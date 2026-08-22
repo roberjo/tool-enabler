@@ -1,0 +1,60 @@
+name: npm
+display_name: npm
+binary: npm
+homepage: https://docs.npmjs.com/cli/
+category: package-manager
+
+detect:
+  installed_check: "npm --version"
+  auth_check: "npm whoami"
+
+when_to_use:
+  - "Installing or updating a Node.js project's dependencies"
+  - "Running a project's defined scripts (build/test/lint) instead of guessing the underlying tool directly"
+  - "Checking for known vulnerabilities in dependencies"
+
+capabilities:
+  - task: "List a project's defined scripts"
+    command: "npm run"
+    notes: "With no script name, npm lists what's available in package.json instead of running anything — use this before guessing a script name."
+    read_only: true
+
+  - task: "Install dependencies exactly as locked"
+    command: "npm ci"
+    notes: "Preferred over `npm install` for reproducible/automated runs — it deletes node_modules first and fails loudly if package-lock.json is out of sync, which is a signal worth surfacing rather than working around."
+    read_only: false
+
+  - task: "Run a defined script"
+    command: "npm run {script}"
+    notes: "Risk depends entirely on what the script does — check package.json's scripts section first if the name is unfamiliar (build/lint/test are usually safe; deploy/release-type scripts are not)."
+    read_only: false
+
+  - task: "Add a new dependency"
+    command: "npm install {package}"
+    notes: "Modifies package.json and package-lock.json."
+    read_only: false
+
+  - task: "Check for known vulnerabilities"
+    command: "npm audit --json"
+    read_only: true
+
+  - task: "Publish a package"
+    command: "npm publish"
+    notes: "Public and largely irreversible — unpublishing is restricted after 72 hours and can break other people's builds. Never run without explicit user confirmation."
+    read_only: false
+
+output_parsing:
+  json_flag: "--json (supported on npm ls, npm audit, npm outdated, among others)"
+  common_fields:
+    - path: ".vulnerabilities"
+      meaning: "from npm audit --json — keyed by package name, with a .severity per entry"
+  error_handling:
+    - pattern: "npm ERR! code ERESOLVE"
+      meaning: "a dependency version conflict — needs a compatible pinning or an explicit --legacy-peer-deps decision, not a blind --force"
+    - pattern: "npm ERR! 404"
+      meaning: "package name/version doesn't exist, or a private registry needs configuring (.npmrc)"
+
+pitfalls:
+  - "`npm ci` requires an exact, present lockfile and deletes node_modules first — don't reach for it if the lockfile is intentionally being updated; that's what `npm install` is for."
+  - "`npm publish` is public and effectively irreversible — never run without explicit user confirmation."
+  - "Both install and lifecycle scripts (preinstall/postinstall, etc.) run arbitrary code from package.json — running an unfamiliar project's `npm install` or `npm run` executes whatever those scripts contain."

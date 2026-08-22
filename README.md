@@ -94,16 +94,18 @@ managed markdown sections never touch content outside their markers.
 
 ## Catalog
 
-CLI (`interface: cli`): `gh`, `git`, `kubectl`, `aws`.
+CLI (`interface: cli`): `gh`, `git`, `kubectl`, `aws`, `az`, `gcloud`,
+`docker`, `terraform`, `helm`, `npm`, `pip`, `cargo`, `vault`, `jq`.
 
 API (`interface: api`): `jira`, `confluence`, `slack`, `msteams`, `splunk`,
 `jenkins`, `harness`, `qtest`.
 
-Not yet built — candidates worth adding next, roughly in likely-value order:
-`docker`, `terraform`, `az`/`gcloud` (siblings to the existing `aws` profile),
-`helm`, `npm`/`pip`/`cargo` (package-manager gotchas: lockfiles, registries,
-auth to private registries), `vault` (secrets), `jq` (output-parsing helper
-in its own right, arguably reusable across every profile's examples).
+22 profiles total. Not yet built — candidates for a future pass: `glab`
+(GitLab CLI, sibling to `gh`), `psql`/`mysql`/`mongosh` (databases), `stern`
+(multi-pod log tailing, complements `kubectl logs`), `argocd`, `uv` (as an
+alternative to `pip` — worth a separate profile rather than folding in, since
+its command surface and lockfile behavior differ enough to need its own
+gotchas documented).
 
 ## Adding a tool
 

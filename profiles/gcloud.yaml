@@ -1,0 +1,68 @@
+name: gcloud
+display_name: Google Cloud CLI
+binary: gcloud
+homepage: https://cloud.google.com/sdk/gcloud
+category: cloud
+
+detect:
+  installed_check: "gcloud version"
+  auth_check: "gcloud auth list --format=json"
+  install_hint: "brew install --cask google-cloud-sdk"
+
+when_to_use:
+  - "Inspecting or managing GCP resources (Compute Engine, GKE, Cloud Storage, Cloud Functions, Cloud Run, etc.)"
+  - "Reading Cloud Logging entries to diagnose an issue"
+  - "Confirming which project/account is active before doing anything else"
+
+prefer_over:
+  - tool: "the GCP Console"
+    reason: "scriptable and returns structured JSON"
+
+capabilities:
+  - task: "Confirm the active account and project"
+    command: "gcloud config list --format=json"
+    notes: "Run before anything side-effecting when multiple projects are configured."
+    read_only: true
+
+  - task: "List Compute Engine instances"
+    command: "gcloud compute instances list --format=json"
+    read_only: true
+
+  - task: "Read recent logs"
+    command: 'gcloud logging read "resource.type=gce_instance" --limit=50 --format=json'
+    read_only: true
+
+  - task: "Describe a resource"
+    command: "gcloud compute instances describe {name} --zone {zone} --format=json"
+    read_only: true
+
+  - task: "Switch the active project"
+    command: "gcloud config set project {project_id}"
+    notes: "Persistent local config change, not scoped to one invocation — confirm the active project again if picking up a task later, or pass --project explicitly to avoid ambiguity."
+    read_only: true
+
+  - task: "Deploy or update a service (e.g. Cloud Run)"
+    command: "gcloud run deploy {service} --image {image}"
+    notes: "Side-effecting — confirm before running, and confirm the active project first."
+    read_only: false
+
+  - task: "Delete a resource"
+    command: "gcloud compute instances delete {name} --zone {zone}"
+    notes: "Destructive and often irreversible."
+    read_only: false
+
+output_parsing:
+  json_flag: "--format=json (or --format='value(field)' for a single scalar)"
+  common_fields:
+    - path: ".status"
+      meaning: "resource-specific — e.g. RUNNING | TERMINATED for Compute instances"
+  error_handling:
+    - pattern: "You do not currently have an active account"
+      meaning: "not authenticated — run `gcloud auth login`"
+    - pattern: "PERMISSION_DENIED"
+      meaning: "authenticated but IAM lacks the required role for this action"
+
+pitfalls:
+  - "The active project/account (`gcloud config list`) is a persistent local config, not scoped to a single invocation — confirm it before anything side-effecting, or pass --project/--account explicitly."
+  - "Default output is a human table — always pass --format=json when parsing."
+  - "Many operations are long-running and return an operation object rather than final state — poll `gcloud ... operations describe` or use --async deliberately rather than assuming an immediate response is final."

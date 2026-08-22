@@ -1,0 +1,53 @@
+name: pip
+display_name: pip
+binary: pip
+homepage: https://pip.pypa.io/
+category: package-manager
+
+detect:
+  installed_check: "pip --version"
+
+when_to_use:
+  - "Installing a Python project's dependencies"
+  - "Checking what's installed, or diagnosing a version conflict"
+  - "Freezing exact installed versions for reproducibility"
+
+capabilities:
+  - task: "Install from a requirements file"
+    command: "pip install -r requirements.txt"
+    read_only: false
+
+  - task: "List installed packages with versions"
+    command: "pip list --format=json"
+    read_only: true
+
+  - task: "Show a package's details"
+    command: "pip show {package}"
+    notes: "Colon-delimited human-readable text, not JSON — unlike `pip list --format=json`."
+    read_only: true
+
+  - task: "Freeze the current environment's exact versions"
+    command: "pip freeze"
+    read_only: true
+
+  - task: "Install a single new package"
+    command: "pip install {package}=={version}"
+    notes: "Modifies the active environment only — it does not update requirements.txt/pyproject.toml, so the change is invisible to anyone else installing from the lockfile until it's added there explicitly."
+    read_only: false
+
+  - task: "Check for dependency conflicts"
+    command: "pip check"
+    read_only: true
+
+output_parsing:
+  json_flag: "--format=json (pip list only; pip show is not JSON)"
+  error_handling:
+    - pattern: "ERROR: No matching distribution found"
+      meaning: "the version doesn't exist for this Python version/platform, or a private index needs configuring"
+    - pattern: "ERROR: pip's dependency resolver"
+      meaning: "a version conflict between requested packages — needs a compatible pinning, not --no-deps as a first resort"
+
+pitfalls:
+  - "pip installs into whichever Python environment is currently active (system, venv, or conda) — confirm `which python`/the active virtualenv before installing, since installing into the wrong environment silently doesn't affect the one the project actually runs in."
+  - "`pip install` alone doesn't update requirements.txt/pyproject.toml — add the dependency there too, or the change isn't reproducible for anyone else."
+  - "`pip show` output is plain colon-delimited text, not JSON."

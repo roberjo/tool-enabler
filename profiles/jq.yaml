@@ -1,0 +1,41 @@
+name: jq
+display_name: jq
+binary: jq
+homepage: https://jqlang.org/manual/
+category: output-parsing
+
+detect:
+  installed_check: "jq --version"
+
+when_to_use:
+  - "Extracting a specific field or reshaping JSON output from another command before deciding on a next step"
+  - "Filtering a JSON array down to just the entries that matter, instead of reading the whole blob"
+
+capabilities:
+  - task: "Extract a single field as a plain string"
+    command: "... | jq -r '.field.subfield'"
+    notes: "-r (raw output) strips the surrounding quotes — without it, a string value prints as a quoted JSON string, which can silently break later string comparisons."
+    read_only: true
+
+  - task: "Filter an array by a condition"
+    command: "... | jq '[.[] | select(.status==\"FAILED\")]'"
+    read_only: true
+
+  - task: "Reshape an array into one compact object per line"
+    command: "... | jq -c '.[]'"
+    notes: "Useful when the upstream command's own JSON output is a single array rather than NDJSON."
+    read_only: true
+
+  - task: "Combine fields into a tab-separated table"
+    command: "... | jq -r '[.name, .status] | @tsv'"
+    read_only: true
+
+output_parsing:
+  error_handling:
+    - pattern: "jq: error (at <stdin>:0): null (null) has no keys"
+      meaning: "the piped input wasn't the expected shape — often the upstream command returned an error message or empty output instead of JSON; check the upstream command succeeded before assuming the jq filter is wrong"
+
+pitfalls:
+  - "jq errors on input that isn't valid JSON at all — a failed upstream command's plain-text error message piped into jq produces a jq parse error that can be mistaken for a jq bug."
+  - "-r (raw output) is usually what's wanted when extracting a plain string; without it, string values print as quoted JSON strings."
+  - "A missing field returns `null`, not an error — `jq '.a.b'` on an object without `.a` silently returns null rather than failing, which can mask a typo in the filter path."

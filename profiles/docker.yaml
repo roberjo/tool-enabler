@@ -1,0 +1,79 @@
+name: docker
+display_name: Docker
+binary: docker
+homepage: https://docs.docker.com/reference/cli/docker/
+category: containers
+
+detect:
+  installed_check: "docker --version"
+  auth_check: "docker info"
+  install_hint: "brew install --cask docker"
+
+when_to_use:
+  - "Inspecting running containers, images, or their logs"
+  - "Building or running a container image as part of a task"
+  - "Diagnosing why a container exited or is unhealthy"
+
+prefer_over:
+  - tool: "manually parsing `docker ps`/`docker images` table output"
+    reason: "the --format '{{json .}}' flag gives structured output instead"
+
+capabilities:
+  - task: "List running containers"
+    command: "docker ps --format '{{json .}}'"
+    notes: "Each line is its own JSON object (NDJSON), not a JSON array — parse line by line. Add -a to include stopped containers."
+    read_only: true
+
+  - task: "Inspect a container or image"
+    command: "docker inspect {name_or_id}"
+    notes: "Always returns a JSON array, even for one target — index [0] when parsing a single result."
+    read_only: true
+
+  - task: "Read a container's logs"
+    command: "docker logs {container} --tail 200"
+    notes: "Omit -f (follow) for one-shot reads in a non-interactive session — it will otherwise block waiting for new output."
+    read_only: true
+
+  - task: "Build an image"
+    command: "docker build -t {tag} {context_dir}"
+    notes: "Local-only side effect (creates/updates an image); lower risk than pushing or running against live infra, but still confirm for anything beyond a routine rebuild."
+    read_only: false
+
+  - task: "Run a container"
+    command: "docker run --rm {image} {cmd}"
+    notes: "--rm cleans up the container on exit, reducing leftover state, but the command still executes arbitrary code from the image."
+    read_only: false
+
+  - task: "Execute a command inside a running container"
+    command: "docker exec {container} {cmd}"
+    notes: "Mutates a live container's state; changes are ephemeral unless the container uses a mounted volume or is later committed."
+    read_only: false
+
+  - task: "Push an image to a registry"
+    command: "docker push {image}:{tag}"
+    notes: "Visible outside the local machine — confirm before running."
+    read_only: false
+
+  - task: "Remove containers or images"
+    command: "docker rm {container} / docker rmi {image} / docker system prune"
+    notes: "Destructive and can be irreversible (volumes especially) — confirm before running, and never run system prune -a or --volumes without explicit confirmation."
+    read_only: false
+
+output_parsing:
+  json_flag: "--format '{{json .}}' (docker ps/images) or --format=json where supported; docker inspect is always JSON"
+  common_fields:
+    - path: ".State.Status"
+      meaning: "running | exited | paused | restarting (from docker inspect)"
+    - path: ".State.ExitCode"
+      meaning: "non-zero means the container's main process failed"
+  error_handling:
+    - pattern: "Cannot connect to the Docker daemon"
+      meaning: "daemon isn't running, or the current user lacks permission to the docker socket"
+    - pattern: "No such container"
+      meaning: "wrong name/id, or the container was already removed"
+
+pitfalls:
+  - "`docker ps`/`docker images` default table output truncates IDs and columns — use --format '{{json .}}' or -q, never parse the table."
+  - "`docker inspect` returns a JSON array even for a single object — index [0]."
+  - "Removing containers, images, or volumes is destructive and often irreversible (volume data loss) — confirm before any `rm`/`rmi`/`prune` with -f or --volumes."
+  - "Filesystem changes made via `docker exec` don't persist across a container restart unless the change lands on a mounted volume — don't assume a fix applied via exec survives a restart."
