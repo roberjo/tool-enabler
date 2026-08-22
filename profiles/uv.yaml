@@ -1,0 +1,55 @@
+name: uv
+display_name: uv
+binary: uv
+homepage: https://docs.astral.sh/uv/
+category: package-manager
+
+detect:
+  installed_check: "uv --version"
+
+when_to_use:
+  - "Installing/syncing a Python project's dependencies when the project uses uv (pyproject.toml + uv.lock present)"
+  - "Running a command inside the project's environment without manually activating a venv"
+  - "Adding or removing a dependency"
+
+prefer_over:
+  - tool: "pip, for a project that has already adopted uv"
+    reason: "faster and manages the venv automatically — but check for uv.lock before assuming a project uses it; don't introduce a second package manager into a pip-based project"
+
+capabilities:
+  - task: "Sync the environment to exactly match the lockfile"
+    command: "uv sync"
+    notes: "Creates/updates .venv and installs dependencies matching uv.lock."
+    read_only: false
+
+  - task: "Run a command inside the project's managed environment"
+    command: "uv run {command}"
+    notes: "No separate 'activate a venv' step is needed — uv run always executes in the right environment. Risk depends entirely on what {command} does."
+    read_only: false
+
+  - task: "Add a dependency"
+    command: "uv add {package}"
+    notes: "Updates pyproject.toml and uv.lock together in one step — unlike pip, there's no separate manual lockfile update, which also means this immediately changes what would be committed to source, not just the live environment."
+    read_only: false
+
+  - task: "Show the resolved dependency tree"
+    command: "uv tree"
+    read_only: true
+
+  - task: "List installed packages"
+    command: "uv pip list --format=json"
+    notes: "uv ships a pip-compatible subcommand for this; the uv-native commands (sync/add/tree) don't have their own --json output mode."
+    read_only: true
+
+output_parsing:
+  json_flag: "uv pip list --format=json only — check current docs before assuming other uv subcommands support JSON output"
+  error_handling:
+    - pattern: "error: No solution found"
+      meaning: "dependency resolution conflict — needs compatible version constraints, not a flag to bypass resolution"
+    - pattern: "error: Failed to read lockfile"
+      meaning: "uv.lock missing or corrupted — run `uv lock` to regenerate"
+
+pitfalls:
+  - "Confirm the project actually uses uv (a uv.lock file present) before reaching for it over pip — don't introduce a second package manager into a project that has standardized on the other."
+  - "`uv add`/`uv remove` update pyproject.toml and uv.lock together immediately — there's no separate lockfile step to remember, but also no chance to review a pending change before it's written to both files."
+  - "`uv run` always runs inside the managed environment, so there's no wrong-venv failure mode the way there is with plain pip/python — but the command itself can still do anything."

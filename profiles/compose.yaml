@@ -1,0 +1,54 @@
+name: compose
+display_name: Docker Compose
+binary: "docker compose"
+homepage: https://docs.docker.com/compose/
+category: containers
+
+detect:
+  installed_check: "docker compose version"
+
+when_to_use:
+  - "Bringing up or tearing down a multi-container local dev/test environment defined in a compose file"
+  - "Checking the status or logs of services in a compose stack"
+
+prefer_over:
+  - tool: "manually running several `docker run` commands and wiring up networking by hand"
+    reason: "a compose file declares services, networking, and volumes together and manages them as one unit"
+
+capabilities:
+  - task: "Show status of services"
+    command: "docker compose ps --format json"
+    notes: "Each line is its own JSON object (NDJSON), same convention as `docker ps`."
+    read_only: true
+
+  - task: "Read logs for one or all services"
+    command: "docker compose logs {service} --tail 200 --no-color"
+    notes: "Plain text, not JSON. Omitting -f already stops after current output, unlike `docker logs`."
+    read_only: true
+
+  - task: "Start the stack"
+    command: "docker compose up -d"
+    notes: "Creates/starts containers, networks, and volumes defined in the compose file. Only picks up code changes if the image is rebuilt — pass --build to rebuild and start in one step."
+    read_only: false
+
+  - task: "Stop and remove the stack"
+    command: "docker compose down"
+    notes: "Removes containers and networks. Never add -v unless the user explicitly wants the stack's volume data wiped — that's a separate, destructive action."
+    read_only: false
+
+  - task: "Rebuild images defined in the compose file"
+    command: "docker compose build"
+    read_only: false
+
+output_parsing:
+  json_flag: "--format json on ps/config; logs output is plain text"
+  error_handling:
+    - pattern: "no configuration file provided"
+      meaning: "not run from a directory containing compose.yaml/docker-compose.yml, or the wrong -f path was given"
+    - pattern: "port is already allocated"
+      meaning: "a host port the compose file binds is already in use by something else"
+
+pitfalls:
+  - "`docker compose down -v` deletes named volumes and their data — never pass -v unless the user explicitly wants the stack's data wiped."
+  - "Compose resolves its config from compose.yaml/docker-compose.yml (or an override file) in the current directory by default — running from the wrong directory silently does nothing or targets the wrong stack."
+  - "`docker compose up -d` recreates containers if their config changed, but not if only application code inside an image changed without a rebuild — use --build to pick up code changes."

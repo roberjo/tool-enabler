@@ -1,0 +1,59 @@
+name: argocd
+display_name: Argo CD CLI
+binary: argocd
+homepage: https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd/
+category: ci-cd
+
+detect:
+  installed_check: "argocd version --client"
+  auth_check: "argocd account get-user-info"
+  install_hint: "brew install argocd"
+
+when_to_use:
+  - "Checking an application's sync/health status before or after a deploy"
+  - "Triggering a sync (deployment) of an application"
+  - "Diffing what a sync would actually change before running it"
+
+prefer_over:
+  - tool: "the Argo CD web UI"
+    reason: "scriptable and returns structured JSON"
+
+capabilities:
+  - task: "List applications"
+    command: "argocd app list -o json"
+    read_only: true
+
+  - task: "Get an application's sync/health status"
+    command: "argocd app get {app_name} -o json"
+    read_only: true
+
+  - task: "Diff what a sync would change"
+    command: "argocd app diff {app_name}"
+    read_only: true
+
+  - task: "Sync (deploy) an application"
+    command: "argocd app sync {app_name}"
+    notes: "Triggers a real deployment to the target cluster. Confirm before running, and check `argocd app diff` first to see what would actually change — especially for production apps."
+    read_only: false
+
+  - task: "Roll back an application to a previous revision"
+    command: "argocd app rollback {app_name} {revision_id}"
+    read_only: false
+
+output_parsing:
+  json_flag: "-o json (or -o yaml)"
+  common_fields:
+    - path: ".status.sync.status"
+      meaning: "Synced | OutOfSync"
+    - path: ".status.health.status"
+      meaning: "Healthy | Degraded | Progressing | Missing"
+  error_handling:
+    - pattern: "rpc error: code = Unauthenticated"
+      meaning: "the cached login session token expired — run `argocd login` again"
+    - pattern: "ComparisonError"
+      meaning: "the app's manifests failed to render/diff — check the source repo/values, not the cluster"
+
+pitfalls:
+  - "argocd caches a login session locally (~/.argocd/config) that can expire mid-task — re-run `argocd login` if authenticated calls suddenly start failing."
+  - "`argocd app sync` triggers a real deployment — confirm before running, and diff first."
+  - "Auto-sync may already be enabled on an application (it reconciles on its own) — a manual sync in that case just forces an earlier reconcile, it isn't the only way changes land, so absence of a manual sync doesn't mean nothing has deployed."

@@ -1,0 +1,48 @@
+name: mongosh
+display_name: MongoDB Shell
+binary: mongosh
+homepage: https://www.mongodb.com/docs/mongodb-shell/
+category: database
+
+detect:
+  installed_check: "mongosh --version"
+
+when_to_use:
+  - "Running a read-only query to inspect documents while debugging"
+  - "Checking what collections/indexes exist in a database"
+
+prefer_over:
+  - tool: "writing throwaway application code just to run one query"
+    reason: "faster and doesn't require touching the codebase for a one-off lookup"
+
+capabilities:
+  - task: "Run a find() query and get JSON output"
+    command: >-
+      mongosh "$MONGODB_URI" --quiet --eval
+      "EJSON.stringify(db.{collection}.find({query}).toArray())"
+    notes: "Use EJSON.stringify(), not plain JSON.stringify() — Mongo-specific types (ObjectId, Date, Decimal128) serialize incorrectly or throw with the plain JSON serializer."
+    read_only: true
+
+  - task: "List collections"
+    command: 'mongosh "$MONGODB_URI" --quiet --eval "EJSON.stringify(db.getCollectionNames())"'
+    read_only: true
+
+  - task: "Insert, update, or delete a document"
+    command: >-
+      mongosh "$MONGODB_URI" --quiet --eval
+      "EJSON.stringify(db.{collection}.updateOne({filter}, {update}))"
+    notes: "--eval runs arbitrary JS against the database — treat any call beyond a plain find() as side-effecting."
+    read_only: false
+
+output_parsing:
+  json_flag: "--eval with EJSON.stringify(...) — plain JSON.stringify mishandles Mongo-specific types"
+  error_handling:
+    - pattern: "MongoServerError: Authentication failed"
+      meaning: "bad credentials in the connection string"
+    - pattern: "querySrv ENOTFOUND"
+      meaning: "wrong SRV hostname in a mongodb+srv:// connection string"
+
+pitfalls:
+  - "Always use EJSON.stringify() when extracting query results — plain JSON.stringify() breaks on ObjectId/Date/Decimal128 fields."
+  - "--eval executes arbitrary JavaScript against the database, including writes — a query that looks read-only in intent can still mutate state if the eval string isn't exactly a find()."
+  - "MONGODB_URI contains credentials — never print it in full."

@@ -1,0 +1,55 @@
+name: ssh
+display_name: SSH
+binary: ssh
+homepage: https://man.openbsd.org/ssh
+category: remote-access
+
+detect:
+  installed_check: "ssh -V"
+
+when_to_use:
+  - "Running a diagnostic command on a remote host to gather information (checking a log file, process status, disk space)"
+  - "Copying a file to or from a remote host (via the companion scp/rsync tools)"
+
+prefer_over:
+  - tool: "asking the user to log in manually and paste output back"
+    reason: "faster when the host is already reachable non-interactively"
+
+capabilities:
+  - task: "Check connectivity to a host without running a command"
+    command: "ssh -o BatchMode=yes -o ConnectTimeout=5 {user}@{host} true"
+    notes: "BatchMode=yes fails fast with a clear error instead of hanging on an interactive password prompt if key auth isn't set up."
+    read_only: true
+
+  - task: "Run a read-only diagnostic command on a remote host"
+    command: "ssh {user}@{host} '{read_only_command}'"
+    notes: "Only use this pattern when {read_only_command} is genuinely read-only (tailing a log, checking process/disk status). Anything that changes remote state is the separate capability below, regardless of how it's phrased."
+    read_only: true
+
+  - task: "Run a command that changes remote state"
+    command: "ssh {user}@{host} '{command}'"
+    notes: "Confirm with the user before running anything that changes state on a remote host — the blast radius extends beyond the local machine, and ssh itself provides no dry-run or built-in rollback."
+    read_only: false
+
+  - task: "Copy a file from a remote host (read)"
+    command: "scp {user}@{host}:{remote_path} {local_path}"
+    read_only: true
+
+  - task: "Copy a file to a remote host (write)"
+    command: "scp {local_path} {user}@{host}:{remote_path}"
+    read_only: false
+
+output_parsing:
+  json_flag: ""
+  error_handling:
+    - pattern: "Permission denied (publickey"
+      meaning: "the local key isn't authorized for this account/host — not a transient network issue, don't retry blindly"
+    - pattern: "Host key verification failed"
+      meaning: "the remote host's key changed or isn't in known_hosts — investigate before bypassing, since this is also what host impersonation looks like"
+    - pattern: "Connection timed out"
+      meaning: "a network/firewall/VPN issue reaching the host, not an auth problem"
+
+pitfalls:
+  - "Never disable host key checking (StrictHostKeyChecking=no, or blindly accepting an unexpected key change) to work around an error without understanding why the key changed — that check exists specifically to catch host impersonation."
+  - "Any command that changes remote state (service restarts, file edits, deployments) needs explicit confirmation — ssh has no built-in dry-run or undo."
+  - "Prefer BatchMode=yes (or a key-only config) for non-interactive use so a missing credential fails fast instead of hanging on a password prompt."

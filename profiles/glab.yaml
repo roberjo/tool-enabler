@@ -1,0 +1,55 @@
+name: glab
+display_name: GitLab CLI
+binary: glab
+homepage: https://gitlab.com/gitlab-org/cli
+category: vcs-hosting
+
+detect:
+  installed_check: "glab --version"
+  auth_check: "glab auth status"
+  install_hint: "brew install glab"
+
+when_to_use:
+  - "Creating, viewing, or reviewing merge requests without leaving the terminal"
+  - "Reading or writing GitLab issues"
+  - "Checking CI pipeline status"
+
+prefer_over:
+  - tool: "the GitLab web UI"
+    reason: "scriptable and works headlessly"
+
+capabilities:
+  - task: "View a merge request's details"
+    command: "glab api projects/:id/merge_requests/{mr_iid}"
+    notes: "Unlike gh, most glab <noun> view/list commands print human-formatted text without a reliable --json flag — `glab api` (a thin wrapper over the GitLab REST API) is the reliable path to structured output."
+    read_only: true
+
+  - task: "List open merge requests"
+    command: "glab api 'projects/:id/merge_requests?state=opened'"
+    read_only: true
+
+  - task: "Check CI pipeline status for a ref"
+    command: "glab api 'projects/:id/pipelines?ref={branch}'"
+    read_only: true
+
+  - task: "Create a merge request"
+    command: 'glab mr create --title "..." --description "..." --source-branch {branch} --target-branch main'
+    notes: "Side-effecting — visible to the whole project. Confirm before running unless already authorized."
+    read_only: false
+
+  - task: "Comment on an issue"
+    command: "glab api projects/:id/issues/{iid}/notes -f body='...'"
+    read_only: false
+
+output_parsing:
+  json_flag: "glab api <endpoint> returns raw GitLab REST API JSON"
+  error_handling:
+    - pattern: "glab: To use GitLab CLI, please authenticate"
+      meaning: "not authenticated — run `glab auth login`"
+    - pattern: "404"
+      meaning: "project/MR/issue not found, or the authenticated user lacks access"
+
+pitfalls:
+  - "Prefer `glab api <endpoint>` over `glab <noun> view/list` whenever the result needs to be parsed — the latter's output format isn't guaranteed the way gh's --json is."
+  - "`glab api` project-scoped endpoints take a project ID or URL-encoded path via the `:id` placeholder — this isn't always inferred correctly outside a git working tree whose remote matches the GitLab project."
+  - "Creating MRs, issues, or comments is visible to the whole project — treat as side-effecting even though the command itself runs instantly."

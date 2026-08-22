@@ -1,0 +1,36 @@
+name: stern
+display_name: Stern
+binary: stern
+homepage: https://github.com/stern/stern
+category: container-orchestration
+
+detect:
+  installed_check: "stern --version"
+  install_hint: "brew install stern"
+
+when_to_use:
+  - "Tailing logs across multiple pods/containers matching a name or label at once, when kubectl logs would require picking one pod at a time"
+
+prefer_over:
+  - tool: "kubectl logs for each pod individually"
+    reason: "aggregates and interleaves logs from every matching pod/container in one call"
+
+capabilities:
+  - task: "Tail logs from pods matching a name pattern, once (no streaming)"
+    command: "stern {pod_query} -n {namespace} --output json --since 10m --no-follow"
+    notes: "stern is a live-tailing tool by nature — always pass --no-follow for a one-shot agent call, or it blocks waiting for new output."
+    read_only: true
+
+  - task: "Tail logs by label selector"
+    command: "stern -l {label}={value} -n {namespace} --since 10m --no-follow"
+    read_only: true
+
+output_parsing:
+  json_flag: "--output json — one object per log line, with podName/containerName/message fields"
+  error_handling:
+    - pattern: "no pods found matching"
+      meaning: "wrong query/label/namespace, or the matching pods have already terminated and rotated out"
+
+pitfalls:
+  - "Always pass --no-follow (and a bounded --since) for a one-shot call — without it, stern streams indefinitely like `kubectl logs -f`."
+  - "It only reaches logs still retained by the container runtime/kubelet — the same retention limits as `kubectl logs`, not a substitute for a real log aggregation backend for anything older than what's currently retained."

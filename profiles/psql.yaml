@@ -1,0 +1,50 @@
+name: psql
+display_name: PostgreSQL CLI
+binary: psql
+homepage: https://www.postgresql.org/docs/current/app-psql.html
+category: database
+
+detect:
+  installed_check: "psql --version"
+
+when_to_use:
+  - "Running a read-only query to inspect data or schema while debugging"
+  - "Checking a table's structure before writing code against it"
+
+prefer_over:
+  - tool: "writing throwaway application code just to run one query"
+    reason: "faster and doesn't require touching the codebase for a one-off lookup"
+
+capabilities:
+  - task: "Run a SELECT query and get JSON output"
+    command: >-
+      psql "$DATABASE_URL" -t -A -c "SELECT json_agg(t) FROM ({query}) t"
+    notes: "psql has no native JSON output mode — wrap the query itself in json_agg()/to_jsonb() and use -t -A (tuples-only, unaligned) to strip psql's table formatting. Only use this pattern for genuinely read-only SELECTs."
+    read_only: true
+
+  - task: "List tables in the current schema"
+    command: 'psql "$DATABASE_URL" -c "\dt"'
+    notes: "Plain text output, not JSON."
+    read_only: true
+
+  - task: "Describe a table's columns"
+    command: 'psql "$DATABASE_URL" -c "\d {table}"'
+    read_only: true
+
+  - task: "Run a data-modifying statement (INSERT/UPDATE/DELETE/DDL)"
+    command: 'psql "$DATABASE_URL" -c "{sql}"'
+    notes: "Directly mutates the database. Confirm the target is a local/dev/staging instance before running, or wrap in an explicit transaction (BEGIN; ...; ROLLBACK;) to test the effect without committing."
+    read_only: false
+
+output_parsing:
+  json_flag: "no native flag — build JSON via json_agg()/to_jsonb() in the query, combined with -t -A"
+  error_handling:
+    - pattern: 'relation "..." does not exist'
+      meaning: "wrong table name, or the table is in a different schema than the current search_path"
+    - pattern: "FATAL:  password authentication failed"
+      meaning: "bad credentials in DATABASE_URL"
+
+pitfalls:
+  - "psql has no native --json flag — get structured output by wrapping the query in to_jsonb()/json_agg() and stripping table borders with -t -A."
+  - "Never run a data-modifying statement against a database without confirming it's a local/dev/staging instance, or wrapping it in a transaction the user can review before COMMIT."
+  - "DATABASE_URL contains credentials in plaintext — never print it in full; redact the password portion in any output shown to the user."

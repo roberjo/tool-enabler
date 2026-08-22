@@ -1,0 +1,50 @@
+name: mysql
+display_name: MySQL CLI
+binary: mysql
+homepage: https://dev.mysql.com/doc/refman/8.0/en/mysql.html
+category: database
+
+detect:
+  installed_check: "mysql --version"
+
+when_to_use:
+  - "Running a read-only query to inspect data or schema while debugging"
+  - "Checking a table's structure before writing code against it"
+
+prefer_over:
+  - tool: "writing throwaway application code just to run one query"
+    reason: "faster and doesn't require touching the codebase for a one-off lookup"
+
+capabilities:
+  - task: "Run a SELECT query and get JSON-ish output"
+    command: >-
+      mysql --batch --raw --skip-column-names -e
+      "SELECT JSON_ARRAYAGG(JSON_OBJECT(...)) FROM ({query}) t" {database}
+    notes: "No native --json flag — build JSON via JSON_OBJECT()/JSON_ARRAYAGG() in the query, and use --batch --raw --skip-column-names for a clean single value instead of the default ASCII table."
+    read_only: true
+
+  - task: "List tables"
+    command: 'mysql -e "SHOW TABLES;" {database}'
+    read_only: true
+
+  - task: "Describe a table's columns"
+    command: 'mysql -e "DESCRIBE {table};" {database}'
+    read_only: true
+
+  - task: "Run a data-modifying statement (INSERT/UPDATE/DELETE/DDL)"
+    command: 'mysql -e "{sql}" {database}'
+    notes: "Directly mutates the database. Confirm the target is a local/dev/staging instance before running."
+    read_only: false
+
+output_parsing:
+  json_flag: "no native flag — use JSON_OBJECT()/JSON_ARRAYAGG() in the query, plus --batch --raw --skip-column-names"
+  error_handling:
+    - pattern: "ERROR 1146"
+      meaning: "table doesn't exist"
+    - pattern: "ERROR 1045"
+      meaning: "access denied — bad credentials"
+
+pitfalls:
+  - "No native JSON output mode, same caveat as psql — build JSON via SQL functions in the query itself."
+  - "Never run a data-modifying statement without confirming the target environment."
+  - "Credentials are often passed via -p/--password (visible in shell history/process list) or a ~/.my.cnf file — prefer the config-file path and never print an invocation containing a literal password."

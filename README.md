@@ -94,18 +94,18 @@ managed markdown sections never touch content outside their markers.
 
 ## Catalog
 
-CLI (`interface: cli`): `gh`, `git`, `kubectl`, `aws`, `az`, `gcloud`,
-`docker`, `terraform`, `helm`, `npm`, `pip`, `cargo`, `vault`, `jq`.
+CLI (`interface: cli`): `gh`, `glab`, `git`, `kubectl`, `helm`, `stern`,
+`argocd`, `aws`, `az`, `gcloud`, `docker`, `compose` (docker compose),
+`terraform`, `npm`, `pip`, `uv`, `cargo`, `vault`, `ssh`, `psql`, `mysql`,
+`mongosh`, `redis`, `jq`.
 
 API (`interface: api`): `jira`, `confluence`, `slack`, `msteams`, `splunk`,
 `jenkins`, `harness`, `qtest`.
 
-22 profiles total. Not yet built — candidates for a future pass: `glab`
-(GitLab CLI, sibling to `gh`), `psql`/`mysql`/`mongosh` (databases), `stern`
-(multi-pod log tailing, complements `kubectl logs`), `argocd`, `uv` (as an
-alternative to `pip` — worth a separate profile rather than folding in, since
-its command surface and lockfile behavior differ enough to need its own
-gotchas documented).
+32 profiles total. Candidates for a future pass, lower priority than what's
+here: `openssl`/`age` (crypto), `systemctl` (service management — more
+sysadmin than SWE, borderline in scope), a second cloud-observability API
+profile (Datadog, PagerDuty) alongside Splunk.
 
 ## Adding a tool
 

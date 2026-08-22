@@ -1,0 +1,54 @@
+name: redis
+display_name: Redis CLI
+binary: redis-cli
+homepage: https://redis.io/docs/latest/develop/tools/cli/
+category: database
+
+detect:
+  installed_check: "redis-cli --version"
+
+when_to_use:
+  - "Inspecting a cached value or checking whether a key exists while debugging"
+  - "Checking basic server info/stats (memory, connected clients)"
+
+prefer_over:
+  - tool: "writing throwaway application code just to poke at the cache"
+    reason: "faster for a one-off lookup"
+
+capabilities:
+  - task: "Get a key's value"
+    command: 'redis-cli -u "$REDIS_URL" GET {key}'
+    read_only: true
+
+  - task: "Check a key's TTL"
+    command: 'redis-cli -u "$REDIS_URL" TTL {key}'
+    notes: "-1 means no expiry set, -2 means the key doesn't exist."
+    read_only: true
+
+  - task: "List keys matching a pattern"
+    command: 'redis-cli -u "$REDIS_URL" --scan --pattern "{pattern}"'
+    notes: "Use --scan, never `KEYS *` outside a tiny local dev instance — KEYS blocks the entire server while scanning; --scan iterates without blocking."
+    read_only: true
+
+  - task: "Get server info/stats"
+    command: 'redis-cli -u "$REDIS_URL" INFO'
+    notes: "Plain text (section:key:value lines), not JSON."
+    read_only: true
+
+  - task: "Set or delete a key"
+    command: 'redis-cli -u "$REDIS_URL" SET {key} {value}'
+    notes: "Side-effecting."
+    read_only: false
+
+output_parsing:
+  json_flag: "none — redis-cli has no JSON output mode; responses are plain bulk strings/arrays"
+  error_handling:
+    - pattern: "NOAUTH Authentication required"
+      meaning: "server requires a password that wasn't provided — check REDIS_URL includes credentials"
+    - pattern: "WRONGTYPE"
+      meaning: "the command doesn't match the key's actual data type (e.g. GET on a hash) — check with TYPE {key} first"
+
+pitfalls:
+  - "Never run `KEYS *` (or a broad pattern) against anything but a small local/dev instance — it blocks the whole server; use --scan --pattern instead."
+  - "No native JSON output — treat responses as plain text/bulk values, and check TYPE {key} before assuming a command matches the key's structure."
+  - "The connection string/password grants full read+write access to the entire database index — never print it in full."
